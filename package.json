@@ -4,13 +4,43 @@
   "description": "Production MCP server for Google Maps Scraper Chrome extension via Playwright",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "google-maps-scraper-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Outgrow-Intelligence-Studios/google-maps-scraper-mcp.git"
+  },
+  "homepage": "https://github.com/Outgrow-Intelligence-Studios/google-maps-scraper-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Outgrow-Intelligence-Studios/google-maps-scraper-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-maps",
+    "scraper",
+    "playwright",
+    "ai-agent",
+    "claude",
+    "cursor"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx src/cli.ts --http",
+    "start": "node dist/cli.js --http",
+    "start:stdio": "node dist/cli.js --stdio",
     "test": "tsx test/run_production_tests.ts",
     "test:server": "tsx test/test_mcp_server.ts",
+    "test:stdio": "tsx test/test_stdio.ts",
+    "test:stdio:real": "tsx test/run_stdio_real_test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,186 +1,168 @@
-# Google Maps Scraper MCP
-
-Turn natural-language Google Maps requests into structured business data using MCP, Playwright, and the MapsScraper Chrome extension.
+# 🗺️ Google Maps Scraper MCP
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Standard%202026-blue.svg)](https://modelcontextprotocol.io)
-[![Agent: Agnostic](https://img.shields.io/badge/Agent-Agnostic-purple.svg)](#connect-your-ai-agent)
-[![Playwright](https://img.shields.io/badge/Playwright-Automation-orange.svg)](https://playwright.dev)
+[![Transport](https://img.shields.io/badge/Transport-STDIO%20%7C%20HTTP-orange.svg)](#mcp-configuration)
+[![Agent: Agnostic](https://img.shields.io/badge/Agent-Agnostic-purple.svg)](#quick-connect)
+[![Playwright](https://img.shields.io/badge/Playwright-Automation-red.svg)](https://playwright.dev)
 [![Status](https://img.shields.io/badge/Status-Verified%20Open--Source-brightgreen.svg)](#verified-tests)
 
 </div>
 
-The MCP server has been tested end-to-end with real Google Maps scraping and is ready for open-source publication.
+Scrape real Google Maps business data directly from your AI agent using MCP, Playwright, and the MapsScraper extension.
 
-This project controls your existing unpacked [MapsScraper](https://mapsscraper.net) Manifest V3 Chrome extension via Playwright automation rather than attempting to reverse-engineer Google Maps internal protobuf endpoints. It exposes the scraper through the Model Context Protocol (MCP) so that any AI coding assistant or agent can trigger verified lead generation on demand.
+```text
+COPY MCP CONFIG  ──▶  PASTE INTO AI AGENT  ──▶  ASK FOR GOOGLE MAPS DATA  ──▶  AI CALLS scrape_google_maps  ──▶  REAL SCRAPED DATA
+```
 
 ---
 
-## Quick Start
+## 🚀 Quick Connect
 
-### 1. Clone the repository
+### 1. Install the MapsScraper Extension
 
-```bash
-git clone https://github.com/Outgrow-Intelligence-Studios/google-maps-scraper-mcp.git
-cd google-maps-scraper-mcp
-```
+Download and extract the unpacked [MapsScraper Chrome extension](https://mapsscraper.net) to a local directory (e.g. `C:\extensions\google-maps-scraper-v2.6.0` or `/Users/you/extensions/google-maps-scraper`).
 
-### 2. Install dependencies
+> **Why is local installation required?** This MCP automates your local browser and extension via Playwright to fetch authentic Google Maps results without reverse-engineering internal protobufs or risking IP blocks.
 
-```bash
-npm install
-```
+### 2. Add This to Your MCP Client
 
-### 3. Configure `.env`
-
-```bash
-# Windows (PowerShell):
-Copy-Item .env.example .env
-
-# macOS / Linux:
-cp .env.example .env
-```
-
-Open `.env` and set `EXTENSION_PATH` to the folder containing your unpacked MapsScraper extension:
-
-```env
-EXTENSION_PATH=C:\path\to\google-maps-scraper-v2.6.0
-CHROME_CHANNEL=msedge
-HEADLESS=false
-PORT=3000
-```
-
-> **Windows Tip**: We recommend `CHROME_CHANNEL=msedge` to avoid profile lock conflicts with active Chrome windows.
-
-### 4. Build and start the server
-
-```bash
-npm run build
-npm start
-```
-
-Your MCP server is now active and listening at:
-```text
-http://localhost:3000/mcp
-```
-
-### 5. Connect an MCP-compatible AI client
-
-Add the server endpoint `http://localhost:3000/mcp` to your MCP client configuration (see [Connect Your AI Agent](#connect-your-ai-agent)).
-
----
-
-## Connect Your AI Agent
-
-The Google Maps Scraper MCP server exposes an HTTP/SSE endpoint at:
-
-```text
-http://localhost:3000/mcp
-```
-
-### Generic MCP Client Configuration
-
-Add this block to your MCP client's configuration file:
+Paste this configuration into your MCP client:
 
 ```json
 {
   "mcpServers": {
     "google-maps-scraper": {
-      "url": "http://localhost:3000/mcp"
+      "command": "npx",
+      "args": ["-y", "google-maps-scraper-mcp"],
+      "env": {
+        "EXTENSION_PATH": "YOUR_EXTENSION_PATH",
+        "CHROME_CHANNEL": "msedge",
+        "HEADLESS": "false"
+      }
     }
   }
 }
 ```
 
-### Client-Specific Setup Notes
+*(Set `EXTENSION_PATH` to the absolute path of your unpacked extension folder, e.g. `C:\\extensions\\google-maps-scraper-v2.6.0`).*
 
-- **Claude Desktop**: Paste into your `claude_desktop_config.json` (`%APPDATA%\Claude\claude_desktop_config.json` on Windows or `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS).
-- **Cursor**: Navigate to **Settings** $\to$ **Features** $\to$ **MCP Servers** $\to$ **Add New MCP Server** and enter `Type: SSE` (or `HTTP`) with URL `http://localhost:3000/mcp`.
+#### Client Setup Quick Reference:
+- **Claude Desktop**: Paste into `claude_desktop_config.json` (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS).
+- **Cursor**: Navigate to **Settings** $\to$ **Features** $\to$ **MCP Servers** $\to$ **Add New MCP Server** (`Command`: `npx -y google-maps-scraper-mcp`, and add the environment variables).
 - **Cline / Roo Code**: Paste into `cline_mcp_settings.json`.
-- **Other MCP Clients**: Use the MCP server URL above (`http://localhost:3000/mcp`) in your client's MCP configuration.
+- **Local Clone (Alternative)**: If running from a local clone instead of npx, replace `command` and `args` with:
+  ```json
+  "command": "node",
+  "args": ["C:\\path\\to\\google-maps-scraper-mcp\\dist\\cli.js"]
+  ```
+
+#### Option B: HTTP / SSE Mode (Persistent Background Server)
+
+If you prefer running the MCP server as a standalone local web service:
+
+1. Clone and build:
+   ```bash
+   git clone https://github.com/Outgrow-Intelligence-Studios/google-maps-scraper-mcp.git
+   cd google-maps-scraper-mcp
+   npm install && npm run build
+   ```
+2. Start server:
+   ```bash
+   npm start
+   ```
+   *(Server starts at `http://localhost:3000/mcp`)*
+3. Add to any MCP client:
+   ```json
+   {
+     "mcpServers": {
+       "google-maps-scraper": {
+         "url": "http://localhost:3000/mcp"
+       }
+     }
+   }
+   ```
 
 ---
 
-## Give This to Your AI Agent
+### 3. Ask Your AI Agent!
 
-Copy and paste this exact prompt into your AI agent's system instructions, project prompt, or chat session:
+Simply ask naturally:
+
+> **"Scrape 50 lawyers in Nagpur with name, phone, address, website and rating."**
+
+- **AI automatically calls `scrape_google_maps`** with structured arguments.
+- **Playwright controls the local browser/extension** to query Google Maps.
+- **Real Google Maps results returned** directly into your AI chat as a structured Markdown table.
+
+---
+
+## 🤖 Give This to Your AI Agent
+
+Paste this ready-to-use instruction block into your AI agent's system instructions, project prompt, or chat session:
 
 ```markdown
-You have access to the Google Maps Scraper MCP server.
+You have access to the Google Maps Scraper MCP server via the `scrape_google_maps` tool.
 
-When I ask you to find, scrape, or extract businesses, professionals, organizations, or places from Google Maps, use the `scrape_google_maps` tool.
+When I ask you to find, scrape, or extract businesses, professionals, clinics, services, or locations from Google Maps:
 
-Translate my natural-language request into:
-
-- query
-- location
-- limit
-- fields
-- enrich_leads when appropriate
-- timeout_seconds when appropriate
-
-Rules:
-
-1. Always use the actual `scrape_google_maps` MCP tool.
-2. Never fabricate, invent, or mock results.
-3. Respect the requested result limit.
-4. Respect the requested fields.
-5. Return the actual number of results returned.
-6. Report `has_more` when available.
-7. If fewer results are available than requested, clearly say so.
-8. Present the results in a clean Markdown table when appropriate.
+1. Automatically invoke the `scrape_google_maps` tool.
+2. Translate my natural request into appropriate arguments:
+   - `query`: Business category or search term (e.g. "lawyers", "hospitals", "dentists", "CA firms")
+   - `location`: Target city, area, or region (e.g. "Nagpur", "Pune", "Mumbai")
+   - `limit`: Number of listings requested (e.g. 10, 25, 50, 100)
+   - `fields`: Projected fields requested (e.g. ["name", "phone", "address", "website", "rating"])
+3. Rules:
+   - Always execute real tool calls. Never fabricate, invent, or mock listings.
+   - Respect the requested limits and fields.
+   - If fewer results are available than requested, accurately report the count and state `has_more: false`.
+   - Format the final data in a clean Markdown table with clickable websites and formatted phone numbers.
 ```
 
 ---
 
-## Try It
+## 💬 Natural-Language Examples
 
-Once connected, you do **not** need to manually construct JSON arguments. Simply prompt your AI agent naturally:
+You do **not** need to manually format JSON. Simply talk to your AI agent:
 
 - *"Scrape 50 lawyers in Nagpur."*
 - *"Find 20 hospitals in Pune with name, phone, address and website."*
-- *"Get 100 restaurants in Mumbai with name, address, phone and rating."*
-- *"Find 30 CA firms in Mumbai with name, phone, address, website and rating."*
-- *"Find 50 dentists in Bangalore with name, phone and website."*
+- *"Get 25 CA firms in Mumbai with name, phone, address, website and rating."*
+- *"Find 40 restaurants in Connaught Place, New Delhi with rating and phone."*
+- *"Extract 15 dental clinics in Bangalore with address and website."*
 
-The AI agent will automatically detect your intent, map the query to `scrape_google_maps`, drive the browser extension, extract the listings, and format the verified data in your chat.
+The AI translates your prompt, triggers `scrape_google_maps`, and presents structured results.
 
 ---
 
-## MCP Tools
+## 🛠️ MCP Tools Reference
 
-### `scrape_google_maps`
+### 1. `scrape_google_maps`
 
-Extracts structured business listings from Google Maps using the MapsScraper Chrome extension.
-
-#### Arguments
+Extracts structured business listings from Google Maps using the MapsScraper extension.
 
 | Argument | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `query` | `string` | **Yes** | — | Business category, service, or keyword (e.g. `'lawyers'`, `'hospitals'`, `'dentists'`, `'restaurants'`) |
+| `query` | `string` | **Yes** | — | Business category, service, or keyword (e.g. `'lawyers'`, `'hospitals'`, `'dentists'`, `'CA firms'`) |
 | `location` | `string` | **Yes** | — | City, region, or address to search within (e.g. `'Nagpur'`, `'Pune'`, `'Mumbai'`) |
-| `limit` | `number` | No | `20` | Maximum number of unique businesses to scrape |
+| `limit` | `number` | No | `20` | Maximum number of unique businesses to scrape (e.g. `10`, `25`, `50`) |
 | `fields` | `string[]` | No | `all` | Specific fields to project (e.g. `['name', 'phone', 'address', 'website', 'rating']`) |
 | `enrich_leads` | `boolean` | No | `false` | Whether to wait for email and social media enrichment (takes extra time) |
 | `timeout_seconds` | `number` | No | `120` | Maximum timeout for the scraping run in seconds |
 
-#### Example Tool Input
-
+#### Example Tool Input:
 ```json
 {
   "query": "hospitals",
   "location": "Pune",
   "limit": 15,
-  "fields": ["name", "phone", "address", "website"],
-  "enrich_leads": false,
-  "timeout_seconds": 180
+  "fields": ["name", "phone", "address", "website"]
 }
 ```
 
-#### Example Response
-
+#### Example Output:
 ```json
 {
   "query": "hospitals",
@@ -199,15 +181,11 @@ Extracts structured business listings from Google Maps using the MapsScraper Chr
 }
 ```
 
-### `get_scraper_status`
+### 2. `get_scraper_status`
 
-Performs an instantaneous health check verifying:
-- Extension folder existence on disk
-- Browser executable availability
-- Reachability of the MapsScraper backend service
+Checks the real-time operational status of the scraper engine, browser binary, extension folder, and backend reachability.
 
-#### Output
-
+#### Example Output:
 ```json
 {
   "status": "healthy",
@@ -219,171 +197,170 @@ Performs an instantaneous health check verifying:
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```text
-User
-  ↓ (Prompt: "Scrape 50 lawyers in Nagpur")
-AI Agent
-  ↓ (Translates to scrape_google_maps tool call)
-MCP Client
-  ↓ (JSON-RPC 2.0 / HTTP / SSE)
-Google Maps Scraper MCP Server
-  ↓ (Launches persistent context)
-Playwright
-  ↓ (Loads unpacked MV3 extension)
-MapsScraper Chrome Extension
-  ↓ (Injects XHR interceptor & triggers search)
-Google Maps
-  ↓ (Emits lead events from DOM & network)
-CSV / Scraped Data
-  ↓ (Captured via memory hook & download stream)
-Normalizer
-  ↓ (Cleans placeholders, applies field aliases & filters)
-Structured MCP Response
+                           ┌───────────────────────────────┐
+                           │      User Natural Prompt      │
+                           │ ("Scrape 50 lawyers in Pune") │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │      AI Agent / MCP Host      │
+                           │  (Claude, Cursor, Cline, etc) │
+                           └───────────────┬───────────────┘
+                                           │
+                       ┌───────────────────┴───────────────────┐
+                       │                                       │
+            STDIO Transport (Default)               HTTP / SSE Transport
+           (Child Process / npx / CLI)             (http://localhost:3000/mcp)
+                       │                                       │
+                       └───────────────────┬───────────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │ Google Maps Scraper MCP Server│
+                           │   (src/cli.ts & src/stdio.ts) │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │      Playwright Automation    │
+                           │ (Ephemeral browser context)   │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │  MapsScraper Chrome Extension │
+                           │   (Manifest V3 local folder)  │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │       Google Maps Engine      │
+                           │ (Live search & DOM hydration) │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │      Response Normalizer      │
+                           │  (snake_case, alias, filter)  │
+                           └───────────────┬───────────────┘
+                                           │
+                                           ▼
+                           ┌───────────────────────────────┐
+                           │   Structured JSON Response    │
+                           │ (Table presented to the user) │
+                           └───────────────────────────────┘
 ```
-
-### Layer Details
-
-- **AI Agent / Client**: Translates conversational language into MCP JSON-RPC tool calls.
-- **MCP Server (`mcp-use`)**: Implements standard tools and schemas, managing request lifecycles statelessly.
-- **Playwright Automation**: Spawns isolated, ephemeral browser instances with the extension preloaded, navigating Google Maps and managing consent dialogs.
-- **MapsScraper Chrome Extension**: Intercepts Google Maps search results in the page and aggregates business data.
-- **Normalizer**: Transforms raw extension CSV headers to canonical `snake_case`, cleans placeholder values, strips internal protobuf hash IDs, and filters to requested fields.
 
 ---
 
-## Verified Tests
+## 🧪 Verified Tests
 
-The following 3 real end-to-end test scenarios were executed against live Google Maps searches:
+The MCP server is tested end-to-end with real Google Maps scraping across multiple categories and cities:
 
 ### Test 1: 10 Lawyers in Nagpur
 - **Command**: `npm test`
-- **Fields Requested**: `name`, `phone`, `address`, `rating`
-- **Result**: **10 listings returned** (`total_scraped: 10`, `has_more: true`).
-- **Verified Data**: Returned real Nagpur legal practices (e.g. *Trisheel Khobragade & Associates*, *Adv.Renuka Damani*, *Adv. Ashwinie Tagde*) with verified phone numbers and star ratings.
+- **Fields**: `name`, `phone`, `address`, `rating`
+- **Result**: **10 listings verified** (`total_scraped: 10`, `has_more: true`).
+- **Verified Data**: Returned real Nagpur legal practices (e.g. *Trisheel Khobragade & Associates*, *Adv.Renuka Damani*, *Adv. Ashwinie Tagde*) with valid phone numbers and star ratings.
 
 ### Test 2: 15 Hospitals in Pune
 - **Command**: `npm test`
-- **Fields Requested**: `name`, `phone`, `address`, `website`
-- **Result**: **15 listings returned** (`total_scraped: 15`, `has_more: true`).
-- **Verified Data**: Returned real Pune healthcare centers (e.g. *Jehangir Hospital*, *Apollo Hospitals Pune*, *Sahyadri Super Speciality Hospital*, *Manipal Hospital*) with verified addresses and websites.
+- **Fields**: `name`, `phone`, `address`, `website`
+- **Result**: **15 listings verified** (`total_scraped: 15`, `has_more: true`).
+- **Verified Data**: Returned real Pune hospitals (e.g. *Jehangir Hospital*, *Apollo Hospitals Pune*, *Sahyadri Super Speciality Hospital*, *Manipal Hospital*) with valid addresses and hospital websites.
 
 ### Test 3: 25 CA Firms in Mumbai
 - **Command**: `npm test`
-- **Fields Requested**: `name`, `phone`, `address`, `website`, `rating`
-- **Result**: **25 listings returned** (`total_scraped: 25`, `has_more: true`).
-- **Verified Data**: Successfully executed multi-batch virtual scrolling past 20 items to capture 25 real Chartered Accountant firms in Mumbai (e.g. *R J Gala & Associates*, *CACP Pandey*, *Mohit S. Shah & Co.*).
+- **Fields**: `name`, `phone`, `address`, `website`, `rating`
+- **Result**: **25 listings verified** (`total_scraped: 25`, `has_more: true`).
+- **Verified Data**: Successfully executed multi-batch virtual scrolling past the initial 20-item viewport to extract 25 verified Chartered Accountant firms in Mumbai.
 
-### Verification Commands
-
+### Test Suite Commands:
 ```bash
-# Build the TypeScript codebase
+# Build TypeScript
 npm run build
 
-# Perform strict type checking
+# Type check
 npm run typecheck
 
-# Verify the MCP server protocol and tool discovery
+# Verify STDIO transport (initialize, tools/list, tools/call)
+npm run test:stdio
+
+# Verify HTTP/SSE transport
 npm run test:server
 
-# Execute the 3 end-to-end production scraping tests
+# Run all 3 live end-to-end scraping tests
 npm test
 ```
 
 ---
 
-## Security
+## ⚙️ Environment Variables
 
-- **Never Commit `.env`**: The `.env` file is strictly listed in `.gitignore` to prevent leaking local directories or environment settings.
-- **Extension Token Protection**: `PLAYWRIGHT_MCP_EXTENSION_TOKEN` is loaded strictly from environment variables. It is never committed, never logged, never printed to console, and never returned in tool outputs.
-- **No Credentials in Documentation**: `.env.example` contains only generic template placeholders.
-- **Credential Rotation**: If any credential or extension token is ever accidentally exposed, immediately revoke and rotate it.
-- **Isolated Browser Profiles**: Each scraping session uses an ephemeral temporary profile directory that is cleaned up after execution to prevent session or cookie leakage.
-- **Safe Path Normalization**: Automatically converts Windows file paths to 8.3 short paths via Windows API to prevent space-splitting command-line injection when passing `--load-extension` flags.
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `EXTENSION_PATH` | **Yes** | — | Absolute path to the unpacked MapsScraper extension directory |
+| `CHROME_CHANNEL` | No | `msedge` on Win / `chrome` | Browser channel to use (`msedge`, `chrome`) |
+| `HEADLESS` | No | `false` | Headless mode (`false` is required for Chrome Manifest V3 extensions) |
+| `PORT` | No | `3000` | Port for HTTP/SSE server mode |
+| `BROWSER_TIMEOUT_MS` | No | `120000` | Playwright operation timeout in milliseconds |
+| `PLAYWRIGHT_MCP_EXTENSION_TOKEN` | No | — | Optional extension bridge token |
 
----
-
-## Troubleshooting
-
-| Problem | Cause | Solution |
-|---|---|---|
-| **Extension not found** | `EXTENSION_PATH` not configured in `.env` | Copy `.env.example` to `.env` and set `EXTENSION_PATH` to the folder containing `manifest.json`. |
-| **Browser fails to launch** | Profile collision with active browser | Set `CHROME_CHANNEL=msedge` in `.env` (recommended on Windows), or close any active Google Chrome windows. |
-| **Extension not loaded** | Headless mode enabled | Set `HEADLESS=false` in `.env`. Manifest V3 extensions require headful browser mode. |
-| **MCP server unavailable** | Port conflict | Change `PORT=3001` in `.env` and update the port in your MCP client configuration. |
-| **Google Maps consent dialog** | Regional cookie consent popup | The scraper automatically detects and clicks "Accept all" / "I agree". If unresolved, verify regional system locale settings. |
-| **Scraping timeout** | Network latency or large limit | Increase `timeout_seconds` in your tool call (e.g. `180` or `240` seconds for 50+ leads). |
-| **Fewer results than requested** | Google Maps reached end of listings | The tool accurately returns all available listings and reports `has_more: false`. |
-| **Browser/profile lock** | Stale browser process from previous abrupt termination | Run `taskkill /F /IM msedge.exe` (or `chrome.exe`) or restart the terminal session. |
-| **MapsScraper backend unavailable** | Network outage connecting to `mapsscraper.net` | Run `npm run test:server` or call `get_scraper_status` to verify backend reachability. |
+> **Windows Tip**: We recommend `CHROME_CHANNEL=msedge` on Windows to avoid browser profile lock conflicts if you already have Google Chrome open.
 
 ---
 
-## Limitations
+## 🔒 Security & Privacy
 
-- **Requires Local Extension**: Requires the unpacked MapsScraper Chrome extension folder locally on disk.
-- **Requires Compatible Browser**: Requires Microsoft Edge or Google Chrome installed on the host machine.
-- **Dynamic Google Maps Layout**: Google Maps periodically updates its frontend selectors and DOM hierarchy.
-- **Listing Availability**: Business density depends on the location and category on Google Maps; the tool accurately reports what Google Maps provides.
-- **Third-Party Service Dependence**: The MapsScraper extension communicates with its backend for lead decryption; availability may be affected by network outages.
-- **Execution Time for Large Datasets**: Scraping 50–100+ businesses involves virtual scrolling and batching, which naturally takes 30–90 seconds.
-- **No Data Fabrication**: The server will never fabricate missing contact info or mock data if a business listing lacks a website or phone number.
+- **No Stored Credentials**: `.env` is strictly excluded in `.gitignore`.
+- **Safe Path Normalization**: Automatically converts Windows file paths to 8.3 short paths via Windows API, preventing space-splitting command-line injection when passing browser flags.
+- **Token Protection**: `PLAYWRIGHT_MCP_EXTENSION_TOKEN` is loaded strictly from environment variables and is never committed, logged, or exposed in tool outputs.
+- **Ephemeral Browser Profiles**: Every scraping session creates an isolated temporary user-data-dir that is cleaned up upon exit.
 
 ---
 
-## Project Structure
+## ⚠️ Requirements & Limitations
+
+- **Local Execution Required**: Because this MCP automates a local browser and Chrome extension, the MCP server must execute on the machine where Google Chrome or Microsoft Edge is installed.
+- **Extension Dependency**: You must have the unpacked MapsScraper extension folder locally on disk.
+- **Headful Browser**: Manifest V3 Chrome extensions require `HEADLESS=false` to execute background service workers and content scripts.
+- **Rate & Listing Limits**: Google Maps search results vary by geographic business density; the tool accurately reports all results provided by Google Maps and flags `has_more: false` when exhausted.
+
+---
+
+## 📁 Repository Structure
 
 ```text
 google-maps-scraper-mcp/
-├── .env.example              # Environment variables template (no secrets)
+├── .env.example              # Environment variables template
 ├── .gitignore                # Protects secrets, node_modules, and temp profiles
 ├── LICENSE                   # MIT License
-├── package.json              # Project scripts and dependencies
-├── README.md                 # Documentation and user guide
+├── package.json              # CLI bin entry, dependencies, and test scripts
+├── README.md                 # User guide and documentation
 ├── tsconfig.json             # Strict TypeScript compiler settings
 ├── src/
-│   ├── index.ts              # MCP Server entry, tool registrations, and HTTP listener
+│   ├── cli.ts                # Executable CLI entry (supports --stdio and --http)
+│   ├── stdio.ts              # Native MCP STDIO transport implementation
+│   ├── index.ts              # MCP HTTP/SSE transport implementation
 │   ├── config.ts             # Safe environment loader and Windows short-path helper
-│   ├── types.ts              # Zod input & output schemas and TypeScript definitions
+│   ├── types.ts              # Zod input/output schemas
 │   └── engine/
-│       ├── scraper-engine.ts # Playwright automation, shadow DOM interaction, and stream capture
+│       ├── scraper-engine.ts # Playwright automation, shadow DOM interaction, stream capture
 │       └── normalizer.ts     # Data cleansing, field aliases, and projection pipeline
 └── test/
-    ├── run_production_tests.ts # Full automated test suite verifying all 3 real scenarios
-    ├── test-scrape.ts          # 5-lead lawyer test
-    ├── test-scrape-hospitals.ts# 20-lead hospital test with field projection
-    └── test_mcp_server.ts      # MCP JSON-RPC protocol and tool listing verification
+    ├── test_stdio.ts         # Automated STDIO protocol and health verification
+    ├── test_mcp_server.ts    # HTTP/SSE protocol and tool listing verification
+    ├── run_production_tests.ts # Full 3-scenario end-to-end production test suite
+    ├── test-scrape.ts        # 5-lead lawyer test
+    └── test-scrape-hospitals.ts # 20-lead hospital test
 ```
 
 ---
 
-## Package Scripts
-
-All commands documented in this guide match the scripts in `package.json`:
-
-```bash
-# Build the TypeScript project into dist/
-npm run build
-
-# Start the server in production mode (requires prior build)
-npm start
-
-# Run the server in development mode with hot reload
-npm run dev
-
-# Run strict TypeScript type checking without emitting files
-npm run typecheck
-
-# Run the full 3-scenario end-to-end production test suite
-npm test
-
-# Run the MCP server protocol and health verification test
-npm run test:server
-```
-
----
-
-## License
+## 📜 License
 
 [MIT](LICENSE) © 2026 Outgrow Intelligence Studios

@@ -84,13 +84,16 @@ process.on('SIGTERM', async () => {
 // Default export for mcp-use CLI / runner
 export default server;
 
+export async function startHttpServer(port: number = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000) {
+  const result = await server.listen(port);
+  console.error(`[MCP HTTP] Google Maps Scraper MCP Server listening on ${result.url} (port ${result.port})`);
+  return result;
+}
+
 // If executed directly (e.g. node dist/index.js or tsx src/index.ts)
 const isDirectRun = process.argv[1] && (process.argv[1].endsWith('index.ts') || process.argv[1].endsWith('index.js'));
 if (isDirectRun) {
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-  server.listen(port).then(({ port: boundPort, url }) => {
-    console.error(`[MCP] Google Maps Scraper MCP Server listening on ${url} (port ${boundPort})`);
-  }).catch((err) => {
+  startHttpServer().catch((err) => {
     console.error('[MCP] Failed to start server:', err);
   });
 }
