@@ -41,14 +41,19 @@
     "test:server": "tsx test/test_mcp_server.ts",
     "test:stdio": "tsx test/test_stdio.ts",
     "test:stdio:real": "tsx test/run_stdio_real_test.ts",
+    "test:leads": "tsx test/test_leads_normalizer.ts",
+    "test:sheets": "tsx test/test_google_sheets.ts",
+    "test:leads:mcp": "tsx test/test_company_leads_mcp.ts",
+    "test:leads:live": "tsx test/test_live_company_leads.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
+    "googleapis": "^184.0.0",
     "mcp-use": "^2.5.1",
     "papaparse": "^5.5.3",
     "playwright": "^1.58.2",
-    "zod": "^3.24.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

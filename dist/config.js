@@ -1,3 +1,4 @@
+import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import dotenv from 'dotenv';
@@ -17,16 +18,24 @@ export function getShortPath(p) {
     return p;
 }
 export function getConfig() {
-    const rawPath = process.env.EXTENSION_PATH;
-    if (!rawPath) {
-        throw new Error('[Config Error] EXTENSION_PATH is not set. Please configure EXTENSION_PATH in your .env file pointing to the unpacked Google Maps Scraper extension directory.');
+    let rawPath = process.env.EXTENSION_PATH;
+    if (!rawPath || !fs.existsSync(rawPath)) {
+        const defaultLocal = path.join(process.cwd(), 'extension');
+        if (fs.existsSync(defaultLocal)) {
+            rawPath = defaultLocal;
+        }
+        else if (!rawPath) {
+            throw new Error('[Config Error] EXTENSION_PATH is not set and no ./extension directory was found. Please configure EXTENSION_PATH in your environment.');
+        }
     }
     const extensionPath = getShortPath(rawPath);
     if (!fs.existsSync(extensionPath)) {
         console.warn(`[Config] Warning: Extension path not found: ${extensionPath}`);
     }
-    // Use msedge by default on Windows to avoid Chrome profile locks with running Chrome
-    const channel = process.env.CHROME_CHANNEL || 'msedge';
+    // Use msedge by default on Windows to avoid Chrome profile locks with running Chrome.
+    // On Linux/Docker, default to empty string so Playwright uses bundled Chromium.
+    const defaultChannel = process.platform === 'win32' ? 'msedge' : '';
+    const channel = process.env.CHROME_CHANNEL !== undefined ? process.env.CHROME_CHANNEL : defaultChannel;
     return {
         extensionPath,
         playwrightToken: process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN || undefined,

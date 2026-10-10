@@ -38,7 +38,12 @@ Environment Variables:
     if (portIndex !== -1 && args[portIndex + 1]) {
       port = parseInt(args[portIndex + 1], 10);
     }
-    await startHttpServer(port);
+    const hostIndex = args.indexOf('--host');
+    let host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+    if (hostIndex !== -1 && args[hostIndex + 1]) {
+      host = args[hostIndex + 1];
+    }
+    await startHttpServer(port, host);
   } else {
     // Default to STDIO transport for standard MCP clients (Claude Desktop, Cursor, Cline, etc.)
     await startStdioServer();

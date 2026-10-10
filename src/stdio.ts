@@ -1,9 +1,11 @@
 import { Server } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { GoogleMapsScraperEngine } from './engine/scraper-engine.js';
-import { ScrapeGoogleMapsInputSchema } from './types.js';
+import { CompanyLeadsEngine } from './engine/company-leads-engine.js';
+import { ScrapeGoogleMapsInputSchema, ScrapeCompanyLeadsInputSchema } from './types.js';
 
 export function createStdioServer(engine: GoogleMapsScraperEngine = new GoogleMapsScraperEngine()) {
+  const companyLeadsEngine = new CompanyLeadsEngine(engine);
   const server = new Server(
     {
       name: 'google-maps-scraper',
@@ -66,6 +68,49 @@ export function createStdioServer(engine: GoogleMapsScraperEngine = new GoogleMa
             properties: {} as Record<string, any>,
           },
         },
+        {
+          name: 'scrape_company_leads',
+          description:
+            'Search Google Maps and generate clean B2B company leads with strictly 3 business fields: Company Name, LinkedIn, and Website. Automatically runs a 5-step LinkedIn discovery fallback pipeline (Maps -> Website -> Public Search -> Verify -> null) and appends deduplicated leads to a Google Sheet.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: "Business category or search keyword (e.g. 'supermarkets', 'software companies', 'lawyers', 'dentists')",
+              },
+              location: {
+                type: 'string',
+                description: "Target city, state, or region (e.g. 'New York', 'Chicago', 'San Francisco', 'Nagpur')",
+              },
+              limit: {
+                type: 'integer',
+                default: 50,
+                description: 'Number of unique company leads to extract (e.g. 20, 50, 100, 200)',
+              },
+              google_sheet: {
+                type: 'string',
+                description: 'Optional Google Sheet ID or full spreadsheet URL to append leads to',
+              },
+              sheet_name: {
+                type: 'string',
+                default: 'Sheet1',
+                description: "Worksheet tab name (default: 'Sheet1')",
+              },
+              enrich_linkedin: {
+                type: 'boolean',
+                default: true,
+                description: 'Whether to run the multi-step LinkedIn discovery fallback pipeline for missing LinkedIn company pages (default: true)',
+              },
+              timeout_seconds: {
+                type: 'integer',
+                default: 180,
+                description: 'Overall timeout for scraping and lead enrichment in seconds',
+              },
+            },
+            required: ['query', 'location'],
+          },
+        },
       ],
     } as any;
   });
@@ -119,6 +164,33 @@ export function createStdioServer(engine: GoogleMapsScraperEngine = new GoogleMa
             {
               type: 'text',
               text: `Error checking scraper status: ${err.message || String(err)}`,
+            },
+          ],
+        };
+      }
+    }
+
+    if (name === 'scrape_company_leads') {
+      try {
+        const validated = ScrapeCompanyLeadsInputSchema.parse(args);
+        const result = await companyLeadsEngine.scrapeCompanyLeads(validated);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${result.summary}\n\n${JSON.stringify(result.results, null, 2)}`,
+            },
+          ],
+          structuredContent: result,
+        };
+      } catch (err: any) {
+        console.error('[MCP Stdio Error] Company leads scraping failed:', err);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `Error during company leads scraping: ${err.message || String(err)}`,
             },
           ],
         };

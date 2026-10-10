@@ -91,11 +91,17 @@ If you prefer running the MCP server as a standalone local web service:
 
 Simply ask naturally:
 
-> **"Scrape 50 lawyers in Nagpur with name, phone, address, website and rating."**
+> **"Find 100 software companies in Chicago and add them to my Google Sheet."**
 
-- **AI automatically calls `scrape_google_maps`** with structured arguments.
-- **Playwright controls the local browser/extension** to query Google Maps.
-- **Real Google Maps results returned** directly into your AI chat as a structured Markdown table.
+or:
+
+> **"Scrape supermarkets in New York."**
+
+- **AI automatically calls `scrape_company_leads`** (or `scrape_google_maps` for general local business data).
+- **Playwright automates the local browser & MapsScraper extension** to extract businesses.
+- **5-Step LinkedIn Fallback Pipeline** discovers official company LinkedIn pages (`/company/...`), strictly rejecting personal `/in/` profiles.
+- **Deduplication Engine** checks against existing records in your Google Sheet by domain, name, and LinkedIn slug.
+- **Appends strictly 3 fields** to your Google Sheet: `| Company Name | LinkedIn | Website |`.
 
 ---
 
@@ -104,21 +110,23 @@ Simply ask naturally:
 Paste this ready-to-use instruction block into your AI agent's system instructions, project prompt, or chat session:
 
 ```markdown
-You have access to the Google Maps Scraper MCP server via the `scrape_google_maps` tool.
+You have access to the Google Maps Scraper MCP server with two primary tools:
+1. `scrape_company_leads`: Company lead generation producing strictly 3 business fields (Company Name, LinkedIn, Website) with LinkedIn fallback discovery and Google Sheets sync.
+2. `scrape_google_maps`: Full local business scraping (name, phone, address, rating, website, etc.).
 
-When I ask you to find, scrape, or extract businesses, professionals, clinics, services, or locations from Google Maps:
-
-1. Automatically invoke the `scrape_google_maps` tool.
-2. Translate my natural request into appropriate arguments:
-   - `query`: Business category or search term (e.g. "lawyers", "hospitals", "dentists", "CA firms")
-   - `location`: Target city, area, or region (e.g. "Nagpur", "Pune", "Mumbai")
-   - `limit`: Number of listings requested (e.g. 10, 25, 50, 100)
-   - `fields`: Projected fields requested (e.g. ["name", "phone", "address", "website", "rating"])
+When I ask you to find companies, B2B leads, or add businesses to a Google Sheet (e.g. "Scrape supermarkets in New York and add to my Google Sheet" or "Find 50 software companies in Chicago"):
+1. Invoke the `scrape_company_leads` tool.
+2. Provide:
+   - `query`: Business category / keyword (e.g. "supermarkets", "software companies")
+   - `location`: City or region (e.g. "New York", "Chicago")
+   - `limit`: Number of companies requested (default: 50)
+   - `google_sheet`: (Optional) Google Sheet ID or full spreadsheet URL to append leads to
+   - `enrich_linkedin`: true (enables automatic multi-tier LinkedIn fallback discovery)
 3. Rules:
-   - Always execute real tool calls. Never fabricate, invent, or mock listings.
-   - Respect the requested limits and fields.
-   - If fewer results are available than requested, accurately report the count and state `has_more: false`.
-   - Format the final data in a clean Markdown table with clickable websites and formatted phone numbers.
+   - Produce strictly: Company Name, LinkedIn, Website. Never add phone numbers, ratings, or addresses to the company leads output or Google Sheet.
+   - Company LinkedIn URLs must be official company pages (https://www.linkedin.com/company/...). Never use /in/ personal profiles.
+   - Never fabricate or guess LinkedIn URLs; if not found, it will be null.
+   - When Google Sheet is provided, report the number of leads added, duplicates skipped, and provide the Google Sheet URL.
 ```
 
 ---
@@ -127,13 +135,15 @@ When I ask you to find, scrape, or extract businesses, professionals, clinics, s
 
 You do **not** need to manually format JSON. Simply talk to your AI agent:
 
-- *"Scrape 50 lawyers in Nagpur."*
+### B2B Company Leads & Google Sheets:
+- *"Scrape supermarkets in New York and add them to my Google Sheet: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"*
+- *"Find 100 software companies in Chicago."*
+- *"Extract 50 marketing agencies in Austin with their official company LinkedIn and website."*
+
+### General Local Business Data:
+- *"Scrape 50 lawyers in Nagpur with name, phone, address, website and rating."*
 - *"Find 20 hospitals in Pune with name, phone, address and website."*
 - *"Get 25 CA firms in Mumbai with name, phone, address, website and rating."*
-- *"Find 40 restaurants in Connaught Place, New Delhi with rating and phone."*
-- *"Extract 15 dental clinics in Bangalore with address and website."*
-
-The AI translates your prompt, triggers `scrape_google_maps`, and presents structured results.
 
 ---
 
@@ -181,7 +191,47 @@ Extracts structured business listings from Google Maps using the MapsScraper ext
 }
 ```
 
-### 2. `get_scraper_status`
+### 3. `scrape_company_leads`
+
+Searches Google Maps for businesses, extracts clean B2B company leads with **strictly 3 business fields** (`Company Name`, `Company LinkedIn`, `Company Website`), runs a 5-step LinkedIn discovery fallback pipeline, and optionally syncs deduplicated leads into a Google Sheet.
+
+| Argument | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `query` | `string` | **Yes** | — | Business category / search keyword (e.g. `'supermarkets'`, `'software companies'`, `'lawyers'`) |
+| `location` | `string` | **Yes** | — | Target city or region (e.g. `'New York'`, `'Chicago'`, `'San Francisco'`) |
+| `limit` | `number` | No | `50` | Maximum number of unique companies to extract |
+| `google_sheet` | `string` | No | `null` | Optional Google Sheet ID or full spreadsheet URL to append leads to |
+| `sheet_name` | `string` | No | `'Sheet1'` | Worksheet tab name (default: `'Sheet1'`) |
+| `enrich_linkedin` | `boolean` | No | `true` | Whether to run the multi-step LinkedIn fallback discovery pipeline |
+| `timeout_seconds` | `number` | No | `180` | Overall timeout for scraping and lead enrichment |
+
+#### Output Structure (Strictly 3 Business Fields):
+```json
+{
+  "query": "software companies",
+  "location": "Chicago",
+  "total_found": 50,
+  "unique_companies": 45,
+  "companies_with_website": 43,
+  "companies_with_linkedin": 39,
+  "added_to_google_sheet": 39,
+  "duplicates_skipped": 6,
+  "google_sheet_url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit",
+  "summary": "Scraping software companies in Chicago...\nFound: 50 businesses\nUnique companies: 45\nCompanies with websites: 43\nCompanies with LinkedIn: 39\nGoogle Sheet: Added 39 new rows (6 duplicates skipped)",
+  "results": [
+    {
+      "company_name": "Acme Software Corp",
+      "linkedin": "https://www.linkedin.com/company/acme-software",
+      "website": "https://acmesoftware.com",
+      "linkedin_source": "website"
+    }
+  ]
+}
+```
+
+> **Note**: `linkedin_source` (`'maps'`, `'website'`, `'web_search'`, or `'not_found'`) is kept internally for diagnostics and is **never** added to your Google Sheet.
+
+### 3. `get_scraper_status`
 
 Checks the real-time operational status of the scraper engine, browser binary, extension folder, and backend reachability.
 
@@ -194,6 +244,31 @@ Checks the real-time operational status of the scraper engine, browser binary, e
   "backendReachable": true
 }
 ```
+
+---
+
+## 📊 Google Sheets Setup (Optional)
+
+When you ask the AI to save leads to a Google Sheet, follow these simple steps:
+
+1. **Create a Service Account**:
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/) $\to$ **IAM & Admin** $\to$ **Service Accounts**.
+   - Create a service account and download the JSON key.
+   - Enable the **Google Sheets API** for your project.
+2. **Add Credentials to `.env`**:
+   ```env
+   # Option 1: File path to JSON key
+   GOOGLE_APPLICATION_CREDENTIALS=C:\path\to\service-account-key.json
+
+   # OR Option 2: Raw JSON string or base64
+   GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
+   ```
+3. **Share Your Google Sheet**:
+   - Open your target Google Sheet.
+   - Click **Share** and add your Service Account email (e.g. `your-agent@project-id.iam.gserviceaccount.com`) as **Editor**.
+4. **Target Sheet Layout**:
+   - The tool automatically verifies or creates the header row: `| Company Name | LinkedIn | Website |`.
+   - New unique rows are appended at the bottom, deduplicating against existing entries by website domain, company name, and LinkedIn URL.
 
 ---
 

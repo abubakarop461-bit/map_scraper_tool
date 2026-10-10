@@ -36,19 +36,26 @@ export class GoogleMapsScraperEngine {
                 `--load-extension=${this.config.extensionPath}`,
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-infobars',
                 '--window-size=1280,900',
             ];
-            // MV3 extensions need headful or persistent context with Chrome
-            this.context = await chromium.launchPersistentContext(userDataDir, {
-                channel: this.config.chromeChannel,
+            if (this.config.headless) {
+                launchArgs.push('--headless=new');
+            }
+            const launchOptions = {
                 headless: this.config.headless,
                 args: launchArgs,
                 viewport: { width: 1280, height: 900 },
                 ignoreDefaultArgs: ['--disable-extensions', '--disable-component-extensions-with-background-pages'],
                 acceptDownloads: true,
-            });
+            };
+            if (this.config.chromeChannel && this.config.chromeChannel.trim().length > 0) {
+                launchOptions.channel = this.config.chromeChannel.trim();
+            }
+            // MV3 extensions need persistent context with Chromium
+            this.context = await chromium.launchPersistentContext(userDataDir, launchOptions);
             this.context.on('close', () => {
                 this.context = null;
             });
