@@ -421,10 +421,10 @@ export function getTestPageHtml(port: number, apiKey: string = ''): string {
     <div class="mcp-endpoints">
       <h3>🔗 MCP Server Endpoints (for Claude, Cursor, or MCP Inspector)</h3>
       <p style="margin-bottom: 0.4rem;">
-        • <strong>HTTP SSE Endpoint:</strong> <code>http://localhost:${port}/mcp</code>
+        • <strong>HTTP SSE Endpoint:</strong> <code id="mcpEndpoint">http://localhost:${port}/mcp</code>
       </p>
       <p style="margin-bottom: 0.4rem;">
-        • <strong>MCP Inspector Web Tool:</strong> Run <code>npx @modelcontextprotocol/inspector http://localhost:${port}/mcp</code>
+        • <strong>MCP Inspector Web Tool:</strong> Run <code id="mcpInspector">npx @modelcontextprotocol/inspector http://localhost:${port}/mcp</code>
       </p>
       <p>
         • <strong>Native STDIO Command:</strong> <code>node dist/cli.js --stdio</code>
@@ -433,6 +433,13 @@ export function getTestPageHtml(port: number, apiKey: string = ''): string {
   </div>
 
   <script>
+    try {
+      const liveOrigin = window.location.origin;
+      const mcpElem = document.getElementById('mcpEndpoint');
+      if (mcpElem) mcpElem.textContent = liveOrigin + '/mcp';
+      const mcpInsp = document.getElementById('mcpInspector');
+      if (mcpInsp) mcpInsp.textContent = 'npx @modelcontextprotocol/inspector ' + liveOrigin + '/mcp';
+    } catch (e) {}
     async function checkHealth() {
       try {
         const res = await fetch('/api/health');

@@ -37,7 +37,7 @@ EXPOSE 10000
 
 # Healthcheck probe
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:10000/api/health || exit 1
+  CMD curl -f http://localhost:${PORT:-10000}/api/health || exit 1
 
-# Run with Xvfb virtual frame buffer for full extension UI support
-CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x900x24", "node", "dist/cli.js", "--http", "--port", "10000", "--host", "0.0.0.0"]
+# Run with Xvfb virtual frame buffer using dynamic PORT and HOST
+CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x900x24", "node", "dist/cli.js", "--http"]
