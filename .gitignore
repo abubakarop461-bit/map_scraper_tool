@@ -9,3 +9,4 @@ dist/
 service_account.json
 *credentials*.json
 
+.vercel
