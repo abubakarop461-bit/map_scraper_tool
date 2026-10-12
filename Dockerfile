@@ -34,6 +34,7 @@ ENV EXTENSION_PATH=/app/extension
 ENV HEADLESS=false
 ENV CHROME_CHANNEL="chromium"
 ENV DISPLAY=:99
+ENV NODE_OPTIONS="--max-old-space-size=128"
 
 EXPOSE 10000
 

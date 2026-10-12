@@ -41,10 +41,10 @@ export class GoogleMapsScraperEngine {
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
                 '--disable-software-rasterizer',
-                '--in-process-gpu',
+                '--blink-settings=imagesEnabled=false',
                 '--no-zygote',
                 '--renderer-process-limit=1',
-                '--js-flags=--max-old-space-size=96',
+                '--js-flags=--max-old-space-size=128',
                 '--disk-cache-size=1048576',
                 '--media-cache-size=1048576',
                 '--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaRouter,OptimizationHints',
@@ -136,20 +136,6 @@ export class GoogleMapsScraperEngine {
         const context = await this.getOrCreateContext();
         const page = await context.newPage();
         try {
-            // Abort heavy media (images, video, web fonts, vector tiles) context-wide to keep memory under 120MB
-            await context.route('**/*', (route) => {
-                const type = route.request().resourceType();
-                const url = route.request().url();
-                // Always allow extension UI assets and backend communication
-                if (url.includes('chrome-extension://') || url.includes('mapsscraper.net')) {
-                    return route.continue();
-                }
-                // Abort heavy images, media, web fonts, and Google vector map tiles to preserve memory in cloud containers
-                if (type === 'image' || type === 'media' || type === 'font' || url.includes('maps/vt')) {
-                    return route.abort();
-                }
-                return route.continue();
-            });
             // Injects CSV blob capture in page context (ignoring image blobs)
             await page.addInitScript(() => {
                 window.__GMAPS_EXPORTED_CSV__ = null;
@@ -169,7 +155,7 @@ export class GoogleMapsScraperEngine {
             const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}/?hl=en`;
             console.error(`[Scraper] Navigating to: ${searchUrl}`);
             try {
-                await page.goto(searchUrl, { waitUntil: 'commit', timeout: 35000 });
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
             }
             catch (err) {
                 console.error(`[Scraper] page.goto notice: ${err.message}`);
