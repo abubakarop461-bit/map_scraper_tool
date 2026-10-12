@@ -459,7 +459,8 @@ export function getTestPageHtml(port: number, apiKey: string = ''): string {
       }
     }
     try {
-      const urlKey = new URLSearchParams(window.location.search).get('api_key') || new URLSearchParams(window.location.search).get('apiKey');
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlKey = urlParams.get('api_key') || urlParams.get('apiKey') || urlParams.get('token');
       const apiKeyInput = document.getElementById('apiKey');
       if (urlKey && apiKeyInput) {
         apiKeyInput.value = urlKey;

@@ -123,9 +123,10 @@ server.use('*', async (c, next) => {
     return next();
   }
 
-  // 2. Check if an API key is configured
+  // 2. Check if an API key or bridge token is configured
   const configuredKey = (process.env.API_KEY || process.env.MCP_API_KEY || '').trim();
-  if (!configuredKey) {
+  const extensionToken = (process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN || '').trim();
+  if (!configuredKey && !extensionToken) {
     // Open local development mode
     return next();
   }
@@ -136,7 +137,10 @@ server.use('*', async (c, next) => {
   const queryKey = (c.req.query('api_key') || c.req.query('apiKey') || c.req.query('token') || '').trim();
 
   const providedKey = token || queryKey;
-  if (providedKey === configuredKey) {
+  if (
+    (configuredKey && providedKey === configuredKey) ||
+    (extensionToken && providedKey === extensionToken)
+  ) {
     return next();
   }
 
@@ -236,13 +240,13 @@ server.use('*', async (c, next) => {
 // Interactive Web UI routes for browser testing
 server.get('/test', (c) => {
   const currentPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3333;
-  const apiKey = (c.req.query('api_key') || c.req.query('apiKey') || '').trim();
+  const apiKey = (c.req.query('api_key') || c.req.query('apiKey') || c.req.query('token') || '').trim();
   return c.html(getTestPageHtml(currentPort, apiKey));
 });
 
 server.get('/', (c) => {
   const currentPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3333;
-  const apiKey = (c.req.query('api_key') || c.req.query('apiKey') || '').trim();
+  const apiKey = (c.req.query('api_key') || c.req.query('apiKey') || c.req.query('token') || '').trim();
   return c.html(getTestPageHtml(currentPort, apiKey));
 });
 

@@ -18,7 +18,9 @@ services:
         value: false
       - key: API_KEY
         generateValue: true
-      - key: DEFAULT_GOOGLE_SHEET_ID
+      - key: PLAYWRIGHT_MCP_EXTENSION_TOKEN
         sync: false
+      - key: DEFAULT_GOOGLE_SHEET_ID
+        value: 1OZwLheM2N6AaTC2_-_tP7N4iwDPNuOtQawYQAOst0gQ
       - key: GOOGLE_SERVICE_ACCOUNT_KEY
         sync: false
