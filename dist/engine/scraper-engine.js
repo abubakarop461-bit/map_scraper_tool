@@ -63,10 +63,9 @@ export class GoogleMapsScraperEngine {
                 '--no-first-run',
                 '--window-size=1280,900',
             ];
-            // On Linux/cloud/headless environments, enable pure headless mode
-            // which fully supports MV3 extensions while consuming minimal memory (~100MB vs 500MB).
-            const isLinux = process.platform === 'linux';
-            const isHeadless = this.config.headless || isLinux || Boolean(process.env.RENDER) || process.env.NODE_ENV === 'production';
+            // Chrome Extensions require headful mode (headless: false).
+            // On Linux/cloud environments (e.g. Render), Xvfb provides the virtual DISPLAY=:99.
+            const isHeadless = Boolean(this.config.headless);
             const launchOptions = {
                 headless: isHeadless,
                 args: launchArgs,
