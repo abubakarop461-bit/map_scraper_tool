@@ -199,6 +199,11 @@ export class GoogleMapsScraperEngine {
                     hasMore = false;
                     break;
                 }
+                // If extension is idle or requiring auth on cloud, don't stall the request
+                if (currentCount === 0 && (Date.now() - startTime > 12000)) {
+                    console.error('[Scraper] Extension idle or unauthenticated on cloud; proceeding to direct extraction.');
+                    break;
+                }
                 // Stall detector: give enough time for extension to paginate
                 if (currentCount === lastCount && currentCount > 0) {
                     noProgressCount++;
@@ -227,9 +232,9 @@ export class GoogleMapsScraperEngine {
                 }
             }).catch(() => { });
             await page.waitForTimeout(1000);
-            // Trigger export and wait for download event
-            console.error('[Scraper] Triggering CSV export from extension...');
-            const downloadPromise = page.waitForEvent('download', { timeout: 20000 }).catch(() => null);
+            let csvData = '';
+            // Trigger export and wait for download event if extension found leads
+            const downloadPromise = page.waitForEvent('download', { timeout: 10000 }).catch(() => null);
             const clicked = await page.evaluate(() => {
                 const csui = document.querySelector('plasmo-csui');
                 if (!csui || !csui.shadowRoot)
@@ -242,46 +247,94 @@ export class GoogleMapsScraperEngine {
                     }
                 }
                 return false;
-            });
-            if (!clicked) {
-                throw new Error('Could not find CSV export element in extension shadow root.');
-            }
-            let csvData = '';
-            // Check in-memory hook first (fast, direct, avoids disk/closed page races)
-            for (let i = 0; i < 20; i++) {
-                const inMem = await page.evaluate(() => window.__GMAPS_EXPORTED_CSV__).catch(() => null);
-                if (inMem && inMem.length > 50 && !inMem.startsWith('\x89PNG') && inMem.includes(',')) {
-                    csvData = inMem;
-                    console.error(`[Scraper] Successfully captured CSV via in-memory hook (${csvData.length} chars). Normalizing...`);
-                    break;
+            }).catch(() => false);
+            if (clicked) {
+                console.error('[Scraper] Triggered CSV export from extension...');
+                // Check in-memory hook first (fast, direct, avoids disk/closed page races)
+                for (let i = 0; i < 20; i++) {
+                    const inMem = await page.evaluate(() => window.__GMAPS_EXPORTED_CSV__).catch(() => null);
+                    if (inMem && inMem.length > 50 && !inMem.startsWith('\x89PNG') && inMem.includes(',')) {
+                        csvData = inMem;
+                        console.error(`[Scraper] Successfully captured CSV via in-memory hook (${csvData.length} chars). Normalizing...`);
+                        break;
+                    }
+                    await page.waitForTimeout(250);
                 }
-                await page.waitForTimeout(250);
-            }
-            // If in-memory hook didn't catch it, read from Playwright download stream
-            if (!csvData) {
-                console.error('[Scraper] Reading CSV from Playwright download stream...');
-                const download = await downloadPromise;
-                if (download) {
-                    const stream = await download.createReadStream();
-                    if (stream) {
-                        const chunks = [];
-                        for await (const chunk of stream) {
-                            chunks.push(Buffer.from(chunk));
+                // If in-memory hook didn't catch it, read from Playwright download stream
+                if (!csvData) {
+                    const download = await downloadPromise;
+                    if (download) {
+                        const stream = await download.createReadStream();
+                        if (stream) {
+                            const chunks = [];
+                            for await (const chunk of stream) {
+                                chunks.push(Buffer.from(chunk));
+                            }
+                            csvData = Buffer.concat(chunks).toString('utf8');
+                            console.error(`[Scraper] Successfully captured CSV from download stream (${csvData.length} chars). Normalizing...`);
                         }
-                        csvData = Buffer.concat(chunks).toString('utf8');
-                        console.error(`[Scraper] Successfully captured CSV from download stream (${csvData.length} chars). Normalizing...`);
                     }
                 }
             }
-            if (!csvData || csvData.trim().length === 0) {
-                throw new Error('Failed to capture CSV data from extension.');
+            let rawRecords = [];
+            if (csvData && csvData.trim().length > 0) {
+                const parseResult = Papa.parse(csvData, {
+                    header: true,
+                    skipEmptyLines: true,
+                });
+                rawRecords = parseResult.data || [];
             }
-            // Parse CSV
-            const parseResult = Papa.parse(csvData, {
-                header: true,
-                skipEmptyLines: true,
-            });
-            const rawRecords = parseResult.data || [];
+            // Robust Cloud Fallback: Extract directly from Google Maps DOM when extension CSV is not generated
+            if (rawRecords.length === 0) {
+                console.error('[Scraper] Extracting listings directly from Google Maps page DOM...');
+                const domPlaces = await page.evaluate(() => {
+                    const results = [];
+                    const cards = document.querySelectorAll('div.Nv2PK, div[role="article"], a.hfpxzc');
+                    const seen = new Set();
+                    cards.forEach((card) => {
+                        let name = '';
+                        let gmapsUrl = '';
+                        let website = null;
+                        let category = null;
+                        if (card.tagName === 'A') {
+                            name = card.getAttribute('aria-label') || '';
+                            gmapsUrl = card.getAttribute('href') || '';
+                        }
+                        else {
+                            const link = card.querySelector('a.hfpxzc, a[aria-label]');
+                            if (link) {
+                                name = link.getAttribute('aria-label') || '';
+                                gmapsUrl = link.getAttribute('href') || '';
+                            }
+                            const webLink = card.querySelector('a[data-value="Website"], a[href^="http"]:not([href*="google.com"]):not([href*="gstatic.com"])');
+                            if (webLink) {
+                                website = webLink.getAttribute('href') || null;
+                            }
+                            const textDivs = Array.from(card.querySelectorAll('div.W4P4ne, div.fontBodyMedium, span'));
+                            for (const el of textDivs) {
+                                const t = el.innerText || '';
+                                if (!category && (t.includes('Software') || t.includes('Company') || t.includes('Service') || t.includes('Agency') || t.includes('IT'))) {
+                                    category = t.split('·')[0].trim();
+                                }
+                            }
+                        }
+                        if (name && !seen.has(name)) {
+                            seen.add(name);
+                            results.push({
+                                Name: name,
+                                Website: website || '',
+                                'Google Maps URL': gmapsUrl,
+                                Categories: category || '',
+                                Fulladdress: '',
+                                Phone: '',
+                            });
+                        }
+                    });
+                    return results;
+                });
+                console.error(`[Scraper] Extracted ${domPlaces.length} listings directly from Google Maps DOM.`);
+                rawRecords = domPlaces;
+            }
             const normalizedRecords = normalizeLeadList(rawRecords, fields);
             const finalResults = normalizedRecords.slice(0, limit);
             return {
