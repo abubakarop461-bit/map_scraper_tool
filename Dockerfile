@@ -31,7 +31,7 @@ ENV NODE_ENV=production
 ENV EXTENSION_PATH=/app/extension
 ENV HEADLESS=false
 ENV CHROME_CHANNEL="chromium"
-ENV NODE_OPTIONS="--max-old-space-size=128"
+ENV NODE_OPTIONS="--max-old-space-size=96"
 
 EXPOSE 10000
 
