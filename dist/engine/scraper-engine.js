@@ -63,7 +63,11 @@ export class GoogleMapsScraperEngine {
                 '--no-first-run',
                 '--window-size=1280,900',
             ];
-            if (this.config.headless) {
+            // On Linux/cloud/headless environments, enable Chrome's modern headless mode
+            // which fully supports MV3 extensions while consuming minimal memory (~100MB vs 500MB).
+            const isLinux = process.platform === 'linux';
+            const useHeadlessNew = this.config.headless || isLinux || Boolean(process.env.RENDER) || process.env.NODE_ENV === 'production';
+            if (useHeadlessNew) {
                 launchArgs.push('--headless=new');
             }
             const launchOptions = {
@@ -144,14 +148,16 @@ export class GoogleMapsScraperEngine {
                 }
                 return route.abort();
             });
-            // Injects CSV blob capture in page context
+            // Injects CSV blob capture in page context (ignoring image blobs)
             await page.addInitScript(() => {
                 window.__GMAPS_EXPORTED_CSV__ = null;
                 const origCreateObjectURL = URL.createObjectURL;
                 URL.createObjectURL = function (blob) {
-                    if (blob && (blob.type?.includes('text') || blob.type?.includes('csv') || blob.size > 0)) {
+                    if (blob && !blob.type?.includes('image')) {
                         blob.text().then((txt) => {
-                            window.__GMAPS_EXPORTED_CSV__ = txt;
+                            if (txt && (txt.includes('Name,') || txt.includes('"Name"') || txt.includes('Query,') || txt.includes('Address,') || (txt.includes(',') && !txt.startsWith('\x89PNG')))) {
+                                window.__GMAPS_EXPORTED_CSV__ = txt;
+                            }
                         }).catch(() => { });
                     }
                     return origCreateObjectURL.apply(this, arguments);
@@ -284,7 +290,7 @@ export class GoogleMapsScraperEngine {
             // Check in-memory hook first (fast, direct, avoids disk/closed page races)
             for (let i = 0; i < 20; i++) {
                 const inMem = await page.evaluate(() => window.__GMAPS_EXPORTED_CSV__).catch(() => null);
-                if (inMem && inMem.length > 50) {
+                if (inMem && inMem.length > 50 && !inMem.startsWith('\x89PNG') && inMem.includes(',')) {
                     csvData = inMem;
                     console.error(`[Scraper] Successfully captured CSV via in-memory hook (${csvData.length} chars). Normalizing...`);
                     break;
