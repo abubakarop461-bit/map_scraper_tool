@@ -202,16 +202,16 @@ export class GoogleMapsScraperEngine {
                 await page.waitForTimeout(2000);
                 // Read current lead count from the floating panel text
                 const panelText = await page.locator('plasmo-csui').locator('#hw-top-gtbakz').innerText({ timeout: 1500 }).catch(() => '');
-                const findingMatch = panelText.match(/Finding\s+(\d+)\s+businesses/i);
+                const searchingMatch = panelText.match(/Searching leads for #(\d+)/i);
                 const exportMatch = panelText.match(/Export Lead List[^\d]*(\d+)\s*\/\s*(\d+)/i) || panelText.match(/Export Lead List[^\d]*(\d+)/i);
                 let currentCount = 0;
-                if (findingMatch) {
-                    currentCount = parseInt(findingMatch[1], 10);
+                if (searchingMatch) {
+                    currentCount = parseInt(searchingMatch[1], 10);
                 }
                 else if (exportMatch) {
-                    currentCount = exportMatch[2] ? parseInt(exportMatch[2], 10) : parseInt(exportMatch[1], 10);
+                    currentCount = parseInt(exportMatch[1], 10);
                 }
-                console.error(`[Scraper] Leads collected: ${currentCount} / ${limit}`);
+                console.error(`[Scraper] Leads collected: ${currentCount} / ${limit} (raw text: "${panelText.replace(/\n+/g, ' ').slice(0, 100)}")`);
                 if (currentCount >= limit) {
                     console.error(`[Scraper] Target limit reached (${currentCount} >= ${limit}). Stopping.`);
                     break;
@@ -224,23 +224,10 @@ export class GoogleMapsScraperEngine {
                     hasMore = false;
                     break;
                 }
-                // Assist feed scrolling on Google Maps to trigger next page batch
-                const feedLocator = page.locator('div[role="feed"]').first();
-                if (await feedLocator.isVisible().catch(() => false)) {
-                    await feedLocator.hover().catch(() => { });
-                    await page.mouse.wheel(0, 1500).catch(() => { });
-                }
-                else {
-                    await page.evaluate(() => {
-                        const feed = document.querySelector('div[role="feed"]') || document.querySelector('[aria-label*="Results for"]');
-                        if (feed)
-                            feed.scrollTop = feed.scrollHeight;
-                    }).catch(() => { });
-                }
-                // Stall detector: give enough time for Google Maps to paginate
+                // Stall detector: give enough time for extension to paginate
                 if (currentCount === lastCount && currentCount > 0) {
                     noProgressCount++;
-                    if (noProgressCount >= 15) { // 30 seconds without new leads
+                    if (noProgressCount >= 10) { // 20 seconds without new leads
                         console.error('[Scraper] No new results detected after multiple attempts.');
                         hasMore = false;
                         break;
