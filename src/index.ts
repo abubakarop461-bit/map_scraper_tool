@@ -265,6 +265,13 @@ server.post('/api/scrape', async (c) => {
   }
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL uncaughtException]:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL unhandledRejection]:', reason);
+});
+
 // Graceful cleanup on exit
 process.on('SIGINT', async () => {
   await engine.close();
