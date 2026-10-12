@@ -4,6 +4,8 @@ export declare class GoogleMapsScraperEngine {
     private context;
     private currentProfileDir;
     private isInitializing;
+    private lastHealthCheckTime;
+    private lastBackendOk;
     constructor();
     private getOrCreateContext;
     checkHealth(): Promise<{

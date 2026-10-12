@@ -34,6 +34,7 @@ ENV EXTENSION_PATH=/app/extension
 ENV HEADLESS=false
 ENV CHROME_CHANNEL=""
 ENV DISPLAY=:99
+ENV NODE_OPTIONS="--max-old-space-size=200"
 
 EXPOSE 10000
 
@@ -42,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:${PORT:-10000}/api/health || exit 1
 
 # Run with virtual frame buffer daemon and direct Node process execution
-CMD ["/bin/sh", "-c", "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true; Xvfb :99 -screen 0 1280x900x16 -ac -noreset & exec node dist/cli.js --http"]
+CMD ["/bin/sh", "-c", "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true; Xvfb :99 -screen 0 1024x768x16 -ac -noreset & exec node dist/cli.js --http"]
