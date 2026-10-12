@@ -34,6 +34,7 @@ export class GoogleMapsScraperEngine {
                 fs.mkdirSync(userDataDir, { recursive: true });
             }
             const launchArgs = [
+                '--headless=new',
                 `--disable-extensions-except=${this.config.extensionPath}`,
                 `--load-extension=${this.config.extensionPath}`,
                 '--no-sandbox',
@@ -72,11 +73,10 @@ export class GoogleMapsScraperEngine {
                 '--no-first-run',
                 '--window-size=1280,900',
             ];
-            // Chrome Extensions require headful mode (headless: false).
-            // On Linux/cloud environments (e.g. Render), Xvfb provides the virtual DISPLAY=:99.
-            const isHeadless = Boolean(this.config.headless);
+            // To support Chrome Extensions without display server overhead, we pass '--headless=new'
+            // in args and headless: false to Playwright (so it invokes the full Chromium binary instead of headless-shell).
             const launchOptions = {
-                headless: isHeadless,
+                headless: false,
                 args: launchArgs,
                 viewport: { width: 1280, height: 900 },
                 ignoreDefaultArgs: ['--disable-extensions', '--disable-component-extensions-with-background-pages'],
