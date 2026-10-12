@@ -3,9 +3,10 @@ FROM node:20-bookworm-slim
 # Set working directory
 WORKDIR /app
 
-# Install Xvfb, curl, and certificates for headless display support
+# Install Xvfb, xauth, curl, and certificates for headless display support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
+    xauth \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
