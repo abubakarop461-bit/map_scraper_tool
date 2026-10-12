@@ -36,8 +36,8 @@ export class CompanyLeadsEngine {
     console.error(`[Company Leads] Starting scraping for "${query}" in "${location}" (Target limit: ${limit})...`);
 
     // 1. Fetch raw Google Maps listings using the existing production scraper engine
-    // Request a buffer of listings so that after deduplication we still satisfy the requested limit
-    const rawLimit = Math.max(limit, Math.min(limit * 2, 200));
+    // For small targeted runs, avoid excess scrolling to save container memory and stop immediately
+    const rawLimit = limit <= 5 ? limit : Math.min(limit + 5, 200);
     const scrapeResult = await this.scraperEngine.scrape({
       query,
       location,
