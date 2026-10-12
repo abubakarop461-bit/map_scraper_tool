@@ -43,9 +43,23 @@ export class GoogleMapsScraperEngine {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-breakpad',
+        '--disable-component-update',
+        '--disable-domain-reliability',
+        '--disable-renderer-backgrounding',
+        '--disable-sync',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--no-first-run',
         '--window-size=1280,900',
+        '--js-flags=--max-old-space-size=128',
       ];
 
       if (this.config.headless) {
