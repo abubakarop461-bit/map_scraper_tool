@@ -35,9 +35,5 @@ ENV NODE_OPTIONS="--max-old-space-size=200"
 
 EXPOSE 10000
 
-# Healthcheck probe
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-10000}/api/health || exit 1
-
 # Direct Node process execution in pure headless mode
 CMD ["node", "dist/cli.js", "--http"]

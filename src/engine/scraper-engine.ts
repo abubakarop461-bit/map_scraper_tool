@@ -184,7 +184,7 @@ export class GoogleMapsScraperEngine {
 
       console.error(`[Scraper] Navigating to: ${searchUrl}`);
       try {
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+        await page.goto(searchUrl, { waitUntil: 'commit', timeout: 35000 });
       } catch (err: any) {
         console.error(`[Scraper] page.goto notice: ${err.message}`);
       }
@@ -193,7 +193,7 @@ export class GoogleMapsScraperEngine {
       await this.handleConsentModal(page);
 
       console.error(`[Scraper] Waiting for MapsScraper extension UI (<plasmo-csui>)... (Current URL: ${page.url()})`);
-      await page.waitForSelector('plasmo-csui', { state: 'attached', timeout: 35000 });
+      await page.waitForSelector('plasmo-csui', { state: 'attached', timeout: 45000 });
       console.error('[Scraper] <plasmo-csui> attached to DOM. Waiting for "Start Scraping" button...');
 
       // Check if Google Maps returned "No results found"
