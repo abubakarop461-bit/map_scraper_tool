@@ -154,13 +154,22 @@ export class GoogleMapsScraperEngine {
     const page = await context.newPage();
 
     try {
-      // Abort heavy media (map tiles, images, fonts) to keep Chromium memory under 150MB in cloud containers
-      await page.route(/(maps\/vt|\.png|\.jpg|\.jpeg|\.webp|\.gif|\.woff|\.woff2|googleusercontent\.com\/p\/)/, (route) => {
+      // Abort heavy media (images, video, web fonts, vector tiles) context-wide to keep memory under 120MB
+      await context.route('**/*', (route) => {
+        const type = route.request().resourceType();
         const url = route.request().url();
+
+        // Always allow extension UI assets and backend communication
         if (url.includes('chrome-extension://') || url.includes('mapsscraper.net')) {
           return route.continue();
         }
-        return route.abort();
+
+        // Abort heavy images, media, web fonts, and Google vector map tiles to preserve memory in cloud containers
+        if (type === 'image' || type === 'media' || type === 'font' || url.includes('maps/vt')) {
+          return route.abort();
+        }
+
+        return route.continue();
       });
 
       // Injects CSV blob capture in page context (ignoring image blobs)
