@@ -3,10 +3,8 @@ FROM node:20-bookworm-slim
 # Set working directory
 WORKDIR /app
 
-# Install Xvfb, xauth, curl, and certificates for headless display support
+# Install curl and ca-certificates for health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    xvfb \
-    xauth \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -31,9 +29,8 @@ ENV HOST=0.0.0.0
 ENV PORT=10000
 ENV NODE_ENV=production
 ENV EXTENSION_PATH=/app/extension
-ENV HEADLESS=false
+ENV HEADLESS=true
 ENV CHROME_CHANNEL=""
-ENV DISPLAY=:99
 ENV NODE_OPTIONS="--max-old-space-size=200"
 
 EXPOSE 10000
@@ -42,5 +39,5 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:${PORT:-10000}/api/health || exit 1
 
-# Run with virtual frame buffer daemon and direct Node process execution
-CMD ["/bin/sh", "-c", "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true; Xvfb :99 -screen 0 1024x768x16 -ac -noreset & exec node dist/cli.js --http"]
+# Direct Node process execution in pure headless mode
+CMD ["node", "dist/cli.js", "--http"]
