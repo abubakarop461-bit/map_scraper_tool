@@ -1,4 +1,5 @@
-import { google } from 'googleapis';
+import { GoogleAuth } from 'google-auth-library';
+import { sheets as googleSheets } from 'googleapis/build/src/apis/sheets/index.js';
 import fs from 'fs';
 import { CompanyLead } from '../types.js';
 import { extractNormalizedDomain, normalizeCompanyName, extractLinkedInSlug, buildSalesNavigatorCompanyUrl } from '../engine/leads-normalizer.js';
@@ -67,12 +68,12 @@ export function getGoogleSheetsClient() {
     );
   }
 
-  const auth = new google.auth.GoogleAuth({
+  const auth = new GoogleAuth({
     credentials: credentialsJson,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
-  return google.sheets({ version: 'v4', auth });
+  return googleSheets({ version: 'v4', auth });
 }
 
 /**

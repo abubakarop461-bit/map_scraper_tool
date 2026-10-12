@@ -117,6 +117,15 @@ export class GoogleMapsScraperEngine {
     const page = await context.newPage();
 
     try {
+      // Abort heavy media (map tiles, images, fonts) to keep Chromium memory under 150MB in cloud containers
+      await page.route(/(maps\/vt|\.png|\.jpg|\.jpeg|\.webp|\.gif|\.woff|\.woff2|googleusercontent\.com\/p\/)/, (route) => {
+        const url = route.request().url();
+        if (url.includes('chrome-extension://') || url.includes('mapsscraper.net')) {
+          return route.continue();
+        }
+        return route.abort();
+      });
+
       // Injects CSV blob capture in page context
       await page.addInitScript(() => {
         (window as any).__GMAPS_EXPORTED_CSV__ = null;
