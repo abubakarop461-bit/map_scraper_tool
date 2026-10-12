@@ -53,7 +53,6 @@ export class GoogleMapsScraperEngine {
                 '--no-default-browser-check',
                 '--no-first-run',
                 '--window-size=1280,900',
-                '--js-flags=--max-old-space-size=128',
             ];
             if (this.config.headless) {
                 launchArgs.push('--headless=new');
