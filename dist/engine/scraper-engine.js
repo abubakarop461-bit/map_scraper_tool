@@ -42,32 +42,7 @@ export class GoogleMapsScraperEngine {
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
                 '--disable-software-rasterizer',
-                '--disable-webgl',
-                '--disable-webgl2',
-                '--disable-3d-apis',
-                '--disable-accelerated-2d-canvas',
-                '--disable-canvas-aa',
-                '--disable-2d-canvas-clip-aa',
-                '--disable-gl-drawing-for-tests',
-                '--disable-audio-output',
-                '--enable-features=NetworkServiceInProcess',
                 '--blink-settings=imagesEnabled=false',
-                '--no-zygote',
-                '--renderer-process-limit=1',
-                '--js-flags=--max-old-space-size=96',
-                '--disk-cache-size=1048576',
-                '--media-cache-size=1048576',
-                '--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaRouter,OptimizationHints',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-infobars',
-                '--disable-background-networking',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-breakpad',
-                '--disable-component-update',
-                '--disable-domain-reliability',
-                '--disable-renderer-backgrounding',
-                '--disable-sync',
                 '--mute-audio',
                 '--no-default-browser-check',
                 '--no-first-run',
@@ -164,7 +139,7 @@ export class GoogleMapsScraperEngine {
             const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}/?hl=en`;
             console.error(`[Scraper] Navigating to: ${searchUrl}`);
             try {
-                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+                await page.goto(searchUrl, { waitUntil: 'commit', timeout: 35000 });
             }
             catch (err) {
                 console.error(`[Scraper] page.goto notice: ${err.message}`);
