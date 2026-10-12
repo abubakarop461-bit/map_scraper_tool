@@ -33,6 +33,7 @@ ENV NODE_ENV=production
 ENV EXTENSION_PATH=/app/extension
 ENV HEADLESS=false
 ENV CHROME_CHANNEL=""
+ENV DISPLAY=:99
 
 EXPOSE 10000
 
@@ -40,5 +41,5 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:${PORT:-10000}/api/health || exit 1
 
-# Run with Xvfb virtual frame buffer using dynamic PORT and HOST
-CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x900x24", "node", "dist/cli.js", "--http"]
+# Run with virtual frame buffer daemon and direct Node process execution
+CMD ["/bin/sh", "-c", "Xvfb :99 -screen 0 1280x900x24 -ac +extension GLX +render -noreset & exec node dist/cli.js --http"]
