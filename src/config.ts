@@ -46,9 +46,9 @@ export function getConfig(): ScraperConfig {
   }
 
   // Use msedge by default on Windows to avoid Chrome profile locks with running Chrome.
-  // On Linux/Docker, default to empty string so Playwright uses bundled Chromium.
-  const defaultChannel = process.platform === 'win32' ? 'msedge' : '';
-  const channel = process.env.CHROME_CHANNEL !== undefined ? process.env.CHROME_CHANNEL : defaultChannel;
+  // On Linux/Docker, use 'chromium' so Playwright uses the full Chromium browser (supporting extensions) instead of headless-shell.
+  const defaultChannel = process.platform === 'win32' ? 'msedge' : 'chromium';
+  const channel = process.env.CHROME_CHANNEL !== undefined && process.env.CHROME_CHANNEL.trim().length > 0 ? process.env.CHROME_CHANNEL.trim() : defaultChannel;
 
   return {
     extensionPath,

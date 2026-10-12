@@ -193,7 +193,8 @@ export class GoogleMapsScraperEngine {
       await this.handleConsentModal(page);
 
       console.error(`[Scraper] Waiting for MapsScraper extension UI (<plasmo-csui>)... (Current URL: ${page.url()})`);
-      await page.waitForSelector('plasmo-csui', { timeout: 35000 });
+      await page.waitForSelector('plasmo-csui', { state: 'attached', timeout: 35000 });
+      console.error('[Scraper] <plasmo-csui> attached to DOM. Waiting for "Start Scraping" button...');
 
       // Check if Google Maps returned "No results found"
       const noResults = await page.locator('text="Google Maps cannot find"').or(page.locator('text="No results found"')).isVisible().catch(() => false);
@@ -211,7 +212,7 @@ export class GoogleMapsScraperEngine {
 
       // Find and click "Start Scraping" button inside the open shadow DOM
       const startBtn = page.locator('plasmo-csui').locator('button:has-text("Start Scraping")');
-      await startBtn.waitFor({ state: 'visible', timeout: 15000 });
+      await startBtn.waitFor({ state: 'visible', timeout: 25000 });
       console.error('[Scraper] Clicking "Start Scraping"...');
       await startBtn.click();
 
