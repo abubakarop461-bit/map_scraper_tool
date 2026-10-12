@@ -46,14 +46,20 @@ export class GoogleMapsScraperEngine {
                 '--mute-audio',
                 '--no-default-browser-check',
                 '--no-first-run',
-                '--window-size=1280,900',
+                '--window-size=800,600',
+                '--renderer-process-limit=1',
+                '--disable-site-isolation-trials',
+                '--js-flags=--max-old-space-size=96',
+                '--disk-cache-size=1',
+                '--media-cache-size=1',
+                '--disable-features=Translate,OptimizationHints,MediaRouter,BackForwardCache',
             ];
             // To support Chrome Extensions without display server overhead, we pass '--headless=new'
             // in args and headless: false to Playwright (so it invokes the full Chromium binary instead of headless-shell).
             const launchOptions = {
                 headless: false,
                 args: launchArgs,
-                viewport: { width: 1280, height: 900 },
+                viewport: { width: 800, height: 600 },
                 ignoreDefaultArgs: ['--disable-extensions', '--disable-component-extensions-with-background-pages'],
                 acceptDownloads: true,
             };
@@ -118,8 +124,16 @@ export class GoogleMapsScraperEngine {
     async scrape(input) {
         const { query, location, limit = 20, fields, timeout_seconds = 120 } = input;
         const context = await this.getOrCreateContext();
-        const page = await context.newPage();
+        const page = context.pages()[0] || await context.newPage();
         try {
+            // Block heavy assets (images, fonts, media) to keep memory footprint lean (< 150MB) on 512MB containers
+            await page.route('**/*', (route) => {
+                const type = route.request().resourceType();
+                if (type === 'image' || type === 'media' || type === 'font') {
+                    return route.abort();
+                }
+                return route.continue();
+            });
             // Injects CSV blob capture in page context (ignoring image blobs)
             await page.addInitScript(() => {
                 window.__GMAPS_EXPORTED_CSV__ = null;
@@ -139,16 +153,13 @@ export class GoogleMapsScraperEngine {
             const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}/?hl=en`;
             console.error(`[Scraper] Navigating to: ${searchUrl}`);
             try {
-                await page.goto(searchUrl, { waitUntil: 'commit', timeout: 35000 });
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
             }
             catch (err) {
                 console.error(`[Scraper] page.goto notice: ${err.message}`);
             }
             // Handle any Google consent modal or redirect if present
             await this.handleConsentModal(page);
-            console.error(`[Scraper] Waiting for MapsScraper extension UI (<plasmo-csui>)... (Current URL: ${page.url()})`);
-            await page.waitForSelector('plasmo-csui', { state: 'attached', timeout: 45000 });
-            console.error('[Scraper] <plasmo-csui> attached to DOM. Waiting for "Start Scraping" button...');
             // Check if Google Maps returned "No results found"
             const noResults = await page.locator('text="Google Maps cannot find"').or(page.locator('text="No results found"')).isVisible().catch(() => false);
             if (noResults) {
@@ -162,60 +173,67 @@ export class GoogleMapsScraperEngine {
                     results: [],
                 };
             }
-            // Find and click "Start Scraping" button inside the open shadow DOM
-            const startBtn = page.locator('plasmo-csui').locator('button:has-text("Start Scraping")');
-            await startBtn.waitFor({ state: 'visible', timeout: 25000 });
-            console.error('[Scraper] Clicking "Start Scraping"...');
-            await startBtn.click();
-            // Monitor lead count and wait until requested limit or end of feed
-            const startTime = Date.now();
-            const maxDurationMs = timeout_seconds * 1000;
-            let lastCount = 0;
-            let noProgressCount = 0;
             let hasMore = true;
-            while (Date.now() - startTime < maxDurationMs) {
-                await page.waitForTimeout(2000);
-                // Read current lead count from the floating panel text
-                const panelText = await page.locator('plasmo-csui').locator('#hw-top-gtbakz').innerText({ timeout: 1500 }).catch(() => '');
-                const searchingMatch = panelText.match(/Searching leads for #(\d+)/i);
-                const exportMatch = panelText.match(/Export Lead List[^\d]*(\d+)\s*\/\s*(\d+)/i) || panelText.match(/Export Lead List[^\d]*(\d+)/i);
-                let currentCount = 0;
-                if (searchingMatch) {
-                    currentCount = parseInt(searchingMatch[1], 10);
+            let extensionStarted = false;
+            // Check if MapsScraper extension UI attaches quickly
+            try {
+                console.error(`[Scraper] Checking for MapsScraper extension UI (<plasmo-csui>)... (URL: ${page.url()})`);
+                const csui = await page.waitForSelector('plasmo-csui', { state: 'attached', timeout: 8000 }).catch(() => null);
+                if (csui) {
+                    const startBtn = page.locator('plasmo-csui').locator('button:has-text("Start Scraping")');
+                    const hasStart = await startBtn.isVisible({ timeout: 5000 }).catch(() => false);
+                    if (hasStart) {
+                        console.error('[Scraper] Found extension "Start Scraping". Clicking...');
+                        await startBtn.click();
+                        extensionStarted = true;
+                    }
                 }
-                else if (exportMatch) {
-                    currentCount = parseInt(exportMatch[1], 10);
-                }
-                console.error(`[Scraper] Leads collected: ${currentCount} / ${limit} (raw text: "${panelText.replace(/\n+/g, ' ').slice(0, 100)}")`);
-                if (currentCount >= limit) {
-                    console.error(`[Scraper] Target limit reached (${currentCount} >= ${limit}). Stopping.`);
-                    break;
-                }
-                // Check if feed ended (Google Maps reached genuine end or extension finished)
-                const isEnd = panelText.includes('Search complete.');
-                const gmapsEnd = await page.locator('text="You\'ve reached the end of the list."').isVisible().catch(() => false);
-                if (isEnd || gmapsEnd) {
-                    console.error('[Scraper] End of available results reached on Google Maps.');
-                    hasMore = false;
-                    break;
-                }
-                // If extension is idle or requiring auth on cloud, don't stall the request
-                if (currentCount === 0 && (Date.now() - startTime > 12000)) {
-                    console.error('[Scraper] Extension idle or unauthenticated on cloud; proceeding to direct extraction.');
-                    break;
-                }
-                // Stall detector: give enough time for extension to paginate
-                if (currentCount === lastCount && currentCount > 0) {
-                    noProgressCount++;
-                    if (noProgressCount >= 10) { // 20 seconds without new leads
-                        console.error('[Scraper] No new results detected after multiple attempts.');
+            }
+            catch (extErr) {
+                console.error(`[Scraper] Extension start skipped: ${extErr.message}`);
+            }
+            if (extensionStarted) {
+                const startTime = Date.now();
+                const maxDurationMs = Math.min(timeout_seconds * 1000, 30000);
+                let lastCount = 0;
+                let noProgressCount = 0;
+                while (Date.now() - startTime < maxDurationMs) {
+                    await page.waitForTimeout(1500);
+                    const panelText = await page.locator('plasmo-csui').locator('#hw-top-gtbakz').innerText({ timeout: 1000 }).catch(() => '');
+                    const searchingMatch = panelText.match(/Searching leads for #(\d+)/i);
+                    const exportMatch = panelText.match(/Export Lead List[^\d]*(\d+)\s*\/\s*(\d+)/i) || panelText.match(/Export Lead List[^\d]*(\d+)/i);
+                    let currentCount = 0;
+                    if (searchingMatch) {
+                        currentCount = parseInt(searchingMatch[1], 10);
+                    }
+                    else if (exportMatch) {
+                        currentCount = parseInt(exportMatch[1], 10);
+                    }
+                    console.error(`[Scraper] Leads collected: ${currentCount} / ${limit}`);
+                    if (currentCount >= limit) {
+                        console.error(`[Scraper] Target limit reached (${currentCount} >= ${limit}). Stopping.`);
+                        break;
+                    }
+                    if (panelText.includes('Search complete.')) {
                         hasMore = false;
                         break;
                     }
-                }
-                else {
-                    lastCount = currentCount;
-                    noProgressCount = 0;
+                    if (currentCount === 0 && Date.now() - startTime > 8000) {
+                        console.error('[Scraper] Extension idle; falling back to direct DOM extraction.');
+                        break;
+                    }
+                    if (currentCount === lastCount && currentCount > 0) {
+                        noProgressCount++;
+                        if (noProgressCount >= 5) {
+                            console.error('[Scraper] No new leads detected.');
+                            hasMore = false;
+                            break;
+                        }
+                    }
+                    else {
+                        lastCount = currentCount;
+                        noProgressCount = 0;
+                    }
                 }
             }
             // Pause scraping via direct DOM click in shadow root
