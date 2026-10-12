@@ -118,12 +118,17 @@ export class GoogleMapsScraperEngine {
             const searchQuery = location ? `${query} in ${location}` : query;
             const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}/`;
             console.error(`[Scraper] Navigating to: ${searchUrl}`);
-            await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+            try {
+                await page.goto(searchUrl, { waitUntil: 'commit', timeout: 45000 });
+            }
+            catch (err) {
+                console.error(`[Scraper] page.goto notice: ${err.message}`);
+            }
             // Handle any Google consent modal if present
             await this.handleConsentModal(page);
             // Wait for the MapsScraper Plasmo overlay to attach
             console.error('[Scraper] Waiting for MapsScraper extension UI (<plasmo-csui>)...');
-            await page.waitForSelector('plasmo-csui', { timeout: 25000 });
+            await page.waitForSelector('plasmo-csui', { timeout: 60000 });
             // Check if Google Maps returned "No results found"
             const noResults = await page.locator('text="Google Maps cannot find"').or(page.locator('text="No results found"')).isVisible().catch(() => false);
             if (noResults) {
@@ -291,11 +296,15 @@ export class GoogleMapsScraperEngine {
                 'button:has-text("Accept all")',
                 'button:has-text("Reject all")',
                 'button:has-text("I agree")',
+                'button:has-text("Before you continue to Google")',
+                'button[aria-label*="Accept all"]',
+                'button[aria-label*="Reject all"]',
                 'form[action*="consent"] button',
             ];
             for (const selector of consentButtons) {
                 const btn = page.locator(selector).first();
                 if (await btn.isVisible({ timeout: 1500 }).catch(() => false)) {
+                    console.error(`[Scraper] Dismissed Google consent dialog using "${selector}".`);
                     await btn.click().catch(() => { });
                     await page.waitForTimeout(1000);
                     break;
