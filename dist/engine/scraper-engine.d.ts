@@ -14,7 +14,12 @@ export declare class GoogleMapsScraperEngine {
         chromePath: boolean;
         backendReachable: boolean;
     }>;
-    scrape(input: ScrapeGoogleMapsInput): Promise<ScrapeGoogleMapsOutput>;
+    scrape(input: ScrapeGoogleMapsInput, onProgress?: (event: {
+        stage: string;
+        message: string;
+        collected: number;
+        target: number;
+    }) => void): Promise<ScrapeGoogleMapsOutput>;
     private handleConsentModal;
     close(): Promise<void>;
 }

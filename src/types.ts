@@ -69,3 +69,15 @@ export const ScrapeCompanyLeadsOutputSchema = z.object({
 });
 
 export type ScrapeCompanyLeadsOutput = z.infer<typeof ScrapeCompanyLeadsOutputSchema>;
+
+export interface ScrapeProgressEvent {
+  stage: 'navigating' | 'scrolling' | 'deduping' | 'enriching' | 'syncing' | 'completed' | 'error';
+  message: string;
+  collected: number;
+  target: number;
+  currentLead?: CompanyLead;
+  batch?: number;
+  totalBatches?: number;
+}
+
+export type ScrapeProgressCallback = (event: ScrapeProgressEvent) => void;

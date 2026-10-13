@@ -12,6 +12,7 @@ import {
   ScrapeCompanyLeadsInput,
   ScrapeCompanyLeadsOutput,
   CompanyLead,
+  ScrapeProgressCallback,
 } from '../types.js';
 
 export class CompanyLeadsEngine {
@@ -21,7 +22,10 @@ export class CompanyLeadsEngine {
     this.scraperEngine = scraperEngine;
   }
 
-  public async scrapeCompanyLeads(input: ScrapeCompanyLeadsInput): Promise<ScrapeCompanyLeadsOutput> {
+  public async scrapeCompanyLeads(
+    input: ScrapeCompanyLeadsInput,
+    onProgress?: ScrapeProgressCallback
+  ): Promise<ScrapeCompanyLeadsOutput> {
     const {
       query,
       location,
@@ -34,17 +38,33 @@ export class CompanyLeadsEngine {
     } = input;
 
     console.error(`[Company Leads] Starting scraping for "${query}" in "${location}" (Target limit: ${limit})...`);
-
-    // 1. Fetch raw Google Maps listings using the existing production scraper engine
-    // For small targeted runs, avoid excess scrolling to save container memory and stop immediately
-    const rawLimit = limit <= 5 ? limit : Math.min(limit + 5, 200);
-    const scrapeResult = await this.scraperEngine.scrape({
-      query,
-      location,
-      limit: rawLimit,
-      enrich_leads: false,
-      timeout_seconds,
+    onProgress?.({
+      stage: 'navigating',
+      message: `Connecting to Google Maps for "${query}" in "${location}"...`,
+      collected: 0,
+      target: limit,
     });
+
+    // 1. Fetch raw Google Maps listings using the scraper engine
+    // Add a 20% buffer to account for possible raw duplicates
+    const rawLimit = limit <= 5 ? limit : Math.min(Math.ceil(limit * 1.25), 250);
+    const scrapeResult = await this.scraperEngine.scrape(
+      {
+        query,
+        location,
+        limit: rawLimit,
+        enrich_leads: false,
+        timeout_seconds,
+      },
+      (p) => {
+        onProgress?.({
+          stage: p.stage as any,
+          message: p.message,
+          collected: p.collected,
+          target: limit,
+        });
+      }
+    );
 
     const rawBusinesses = scrapeResult.results || [];
     const totalFound = rawBusinesses.length;
@@ -92,9 +112,16 @@ export class CompanyLeadsEngine {
 
     const uniqueCompanies = candidateLeads.length;
     console.error(`[Company Leads] Unique deduplicated companies: ${uniqueCompanies}`);
+    onProgress?.({
+      stage: 'deduping',
+      message: `Deduplicated to ${uniqueCompanies} unique candidate companies...`,
+      collected: uniqueCompanies,
+      target: limit,
+    });
 
     // 3. Run the 5-step LinkedIn discovery fallback pipeline with controlled concurrency
     console.error(`[Company Leads] Discovering company LinkedIn URLs (enrichment: ${enrich_linkedin})...`);
+    let enrichedCount = 0;
 
     const enrichedLeads: CompanyLead[] = await pMap(
       candidateLeads,
@@ -114,13 +141,24 @@ export class CompanyLeadsEngine {
         const salesNavUrl = buildSalesNavigatorCompanyUrl(candidate.companyName, linkedin);
         const finalLinkedIn = sales_navigator ? salesNavUrl : linkedin;
 
-        return {
+        const lead: CompanyLead = {
           company_name: candidate.companyName,
           linkedin: finalLinkedIn,
           website: candidate.website,
           linkedin_source: source,
           sales_navigator_url: salesNavUrl,
         };
+
+        enrichedCount++;
+        onProgress?.({
+          stage: 'enriching',
+          message: `[${enrichedCount}/${candidateLeads.length}] Verified ${candidate.companyName} (${source})...`,
+          collected: enrichedCount,
+          target: candidateLeads.length,
+          currentLead: lead,
+        });
+
+        return lead;
       },
       5 // 5 concurrent lookups
     );
@@ -140,6 +178,12 @@ export class CompanyLeadsEngine {
 
     if (targetSheet) {
       console.error(`[Company Leads] Syncing ${enrichedLeads.length} leads to Google Sheet (${targetSheet})...`);
+      onProgress?.({
+        stage: 'syncing',
+        message: `Syncing ${enrichedLeads.length} leads to Google Sheet (${targetSheet})...`,
+        collected: enrichedLeads.length,
+        target: limit,
+      });
       try {
         const syncResult: GoogleSheetsSyncResult = await appendLeadsToGoogleSheet({
           spreadsheetInput: targetSheet,
@@ -184,6 +228,13 @@ export class CompanyLeadsEngine {
     }
 
     const summary = summaryLines.join('\n');
+
+    onProgress?.({
+      stage: 'completed',
+      message: `Completed! Extracted ${enrichedLeads.length} leads (${companiesWithWebsite} websites, ${companiesWithLinkedIn} LinkedIn).`,
+      collected: enrichedLeads.length,
+      target: limit,
+    });
 
     return {
       query,

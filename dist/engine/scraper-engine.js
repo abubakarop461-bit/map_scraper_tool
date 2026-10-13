@@ -121,7 +121,7 @@ export class GoogleMapsScraperEngine {
             backendReachable: this.lastBackendOk,
         };
     }
-    async scrape(input) {
+    async scrape(input, onProgress) {
         const { query, location, limit = 20, fields, timeout_seconds = 120 } = input;
         const context = await this.getOrCreateContext();
         const page = context.pages()[0] || await context.newPage();
@@ -302,55 +302,105 @@ export class GoogleMapsScraperEngine {
                 });
                 rawRecords = parseResult.data || [];
             }
-            // Robust Cloud Fallback: Extract directly from Google Maps DOM when extension CSV is not generated
+            // Robust Cloud & Scalable Engine: Extract directly from Google Maps DOM with active feed scrolling
             if (rawRecords.length === 0) {
-                console.error('[Scraper] Extracting listings directly from Google Maps page DOM...');
-                const domPlaces = await page.evaluate(() => {
-                    const results = [];
-                    const cards = document.querySelectorAll('div.Nv2PK, div[role="article"], a.hfpxzc');
-                    const seen = new Set();
-                    cards.forEach((card) => {
-                        let name = '';
-                        let gmapsUrl = '';
-                        let website = null;
-                        let category = null;
-                        if (card.tagName === 'A') {
-                            name = card.getAttribute('aria-label') || '';
-                            gmapsUrl = card.getAttribute('href') || '';
-                        }
-                        else {
-                            const link = card.querySelector('a.hfpxzc, a[aria-label]');
-                            if (link) {
-                                name = link.getAttribute('aria-label') || '';
-                                gmapsUrl = link.getAttribute('href') || '';
+                console.error(`[Scraper] Extracting listings directly from Google Maps page DOM with active feed scrolling (Target: ${limit})...`);
+                onProgress?.({
+                    stage: 'scrolling',
+                    message: `Scrolling Google Maps feed to collect ${limit} listings...`,
+                    collected: 0,
+                    target: limit,
+                });
+                const domPlaces = [];
+                const seen = new Set();
+                let scrollAttempts = 0;
+                const maxScrollAttempts = Math.min(Math.ceil(limit / 3) + 12, 45);
+                while (domPlaces.length < limit && scrollAttempts < maxScrollAttempts) {
+                    scrollAttempts++;
+                    const batch = await page.evaluate(() => {
+                        const results = [];
+                        const cards = document.querySelectorAll('div.Nv2PK, div[role="article"], a.hfpxzc');
+                        cards.forEach((card) => {
+                            let name = '';
+                            let gmapsUrl = '';
+                            let website = null;
+                            let category = null;
+                            if (card.tagName === 'A') {
+                                name = card.getAttribute('aria-label') || '';
+                                gmapsUrl = card.getAttribute('href') || '';
                             }
-                            const webLink = card.querySelector('a[data-value="Website"], a[href^="http"]:not([href*="google.com"]):not([href*="gstatic.com"])');
-                            if (webLink) {
-                                website = webLink.getAttribute('href') || null;
-                            }
-                            const textDivs = Array.from(card.querySelectorAll('div.W4P4ne, div.fontBodyMedium, span'));
-                            for (const el of textDivs) {
-                                const t = el.innerText || '';
-                                if (!category && (t.includes('Software') || t.includes('Company') || t.includes('Service') || t.includes('Agency') || t.includes('IT'))) {
-                                    category = t.split('·')[0].trim();
+                            else {
+                                const link = card.querySelector('a.hfpxzc, a[aria-label]');
+                                if (link) {
+                                    name = link.getAttribute('aria-label') || '';
+                                    gmapsUrl = link.getAttribute('href') || '';
+                                }
+                                const webLink = card.querySelector('a[data-value="Website"], a[href^="http"]:not([href*="google.com"]):not([href*="gstatic.com"])');
+                                if (webLink) {
+                                    website = webLink.getAttribute('href') || null;
+                                }
+                                const textDivs = Array.from(card.querySelectorAll('div.W4P4ne, div.fontBodyMedium, span'));
+                                for (const el of textDivs) {
+                                    const t = el.innerText || '';
+                                    if (!category && (t.includes('Software') || t.includes('Company') || t.includes('Service') || t.includes('Agency') || t.includes('IT') || t.includes('Office') || t.includes('Consultant'))) {
+                                        category = t.split('·')[0].trim();
+                                    }
                                 }
                             }
-                        }
-                        if (name && !seen.has(name)) {
-                            seen.add(name);
-                            results.push({
-                                Name: name,
-                                Website: website || '',
-                                'Google Maps URL': gmapsUrl,
-                                Categories: category || '',
-                                Fulladdress: '',
-                                Phone: '',
-                            });
-                        }
+                            if (name) {
+                                results.push({
+                                    Name: name,
+                                    Website: website || '',
+                                    'Google Maps URL': gmapsUrl,
+                                    Categories: category || '',
+                                    Fulladdress: '',
+                                    Phone: '',
+                                });
+                            }
+                        });
+                        return results;
                     });
-                    return results;
-                });
-                console.error(`[Scraper] Extracted ${domPlaces.length} listings directly from Google Maps DOM.`);
+                    for (const item of batch) {
+                        if (item.Name && !seen.has(item.Name)) {
+                            seen.add(item.Name);
+                            domPlaces.push(item);
+                        }
+                    }
+                    onProgress?.({
+                        stage: 'scrolling',
+                        message: `Batch ${scrollAttempts}: Collected ${domPlaces.length} / ${limit} unique listings...`,
+                        collected: domPlaces.length,
+                        target: limit,
+                    });
+                    if (domPlaces.length >= limit) {
+                        console.error(`[Scraper] Target limit reached (${domPlaces.length} >= ${limit}). Stopping feed scroll.`);
+                        break;
+                    }
+                    // Check if Google Maps reached the end of the feed
+                    const isEnd = await page.evaluate(() => {
+                        return document.body.innerText.includes("You've reached the end of the list.") ||
+                            document.querySelector('div[role="feed"] p.fontTitleSmall') !== null;
+                    }).catch(() => false);
+                    if (isEnd) {
+                        console.error('[Scraper] End of available results reached on Google Maps.');
+                        hasMore = false;
+                        break;
+                    }
+                    // Scroll the results container
+                    await page.evaluate(() => {
+                        const feed = document.querySelector('div[role="feed"]') ||
+                            document.querySelector('div[aria-label*="Results for"]') ||
+                            document.querySelector('div.m6QErb.DxyBCb');
+                        if (feed) {
+                            feed.scrollTop += 2200;
+                        }
+                        else {
+                            window.scrollBy(0, 1000);
+                        }
+                    }).catch(() => { });
+                    await page.waitForTimeout(700);
+                }
+                console.error(`[Scraper] Extracted ${domPlaces.length} listings directly from Google Maps DOM across ${scrollAttempts} scroll batches.`);
                 rawRecords = domPlaces;
             }
             const normalizedRecords = normalizeLeadList(rawRecords, fields);

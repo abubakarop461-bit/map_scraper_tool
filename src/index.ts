@@ -265,6 +265,96 @@ server.post('/api/scrape', async (c) => {
   }
 });
 
+// SSE Streaming Route (GET for native EventSource)
+server.get('/api/scrape/stream', async (c) => {
+  const query = c.req.query('query') || '';
+  const location = c.req.query('location') || '';
+  const limit = parseInt(c.req.query('limit') || '50', 10);
+  const google_sheet = c.req.query('google_sheet') || undefined;
+  const sheet_name = c.req.query('sheet_name') || 'Sheet1';
+  const enrich_linkedin = c.req.query('enrich_linkedin') !== 'false';
+  const sales_navigator = c.req.query('sales_navigator') === 'true';
+  const timeout_seconds = parseInt(c.req.query('timeout_seconds') || '180', 10);
+
+  const body = { query, location, limit, google_sheet, sheet_name, enrich_linkedin, sales_navigator, timeout_seconds };
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (data: any) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {}
+      };
+
+      try {
+        const result = await companyLeadsEngine.scrapeCompanyLeads(body, (progress) => {
+          sendEvent({ type: 'progress', ...progress });
+        });
+        sendEvent({ type: 'done', result });
+      } catch (err: any) {
+        sendEvent({ type: 'error', error: err.message || String(err) });
+      } finally {
+        try {
+          controller.close();
+        } catch {}
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+});
+
+// SSE Streaming Route (POST)
+server.post('/api/scrape/stream', async (c) => {
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (data: any) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {}
+      };
+
+      try {
+        const result = await companyLeadsEngine.scrapeCompanyLeads(body, (progress) => {
+          sendEvent({ type: 'progress', ...progress });
+        });
+        sendEvent({ type: 'done', result });
+      } catch (err: any) {
+        sendEvent({ type: 'error', error: err.message || String(err) });
+      } finally {
+        try {
+          controller.close();
+        } catch {}
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+});
+
 process.on('uncaughtException', (err) => {
   console.error('[FATAL uncaughtException]:', err);
 });
