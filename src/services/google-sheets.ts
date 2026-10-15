@@ -231,8 +231,8 @@ export async function appendLeadsToGoogleSheet(params: {
     if (leadLinkedInSlug) existingLinkedInSlugs.add(leadLinkedInSlug);
 
     // Format strictly: [Company Name, LinkedIn, Website]
-    // Uses direct LinkedIn Sales Navigator URL so clicking in Google Sheet opens Sales Navigator
-    const sheetLinkedIn = lead.sales_navigator_url || buildSalesNavigatorCompanyUrl(lead.company_name, lead.linkedin);
+    // Keeps link strictly on standard LinkedIn platform (never Sales Navigator):
+    const sheetLinkedIn = lead.linkedin || '';
 
     newRowsToAppend.push([
       lead.company_name,

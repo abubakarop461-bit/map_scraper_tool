@@ -139,11 +139,10 @@ export class CompanyLeadsEngine {
         );
 
         const salesNavUrl = buildSalesNavigatorCompanyUrl(candidate.companyName, linkedin);
-        const finalLinkedIn = sales_navigator ? salesNavUrl : linkedin;
 
         const lead: CompanyLead = {
           company_name: candidate.companyName,
-          linkedin: finalLinkedIn,
+          linkedin: linkedin, // Strictly keep on standard LinkedIn platform (never Sales Navigator)
           website: candidate.website,
           linkedin_source: source,
           sales_navigator_url: salesNavUrl,

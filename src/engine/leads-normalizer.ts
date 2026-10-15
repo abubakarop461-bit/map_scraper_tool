@@ -363,11 +363,96 @@ export async function searchPublicWebForLinkedIn(
 }
 
 /**
+ * Verifies if a LinkedIn company URL actually exists and is active on standard LinkedIn platform.
+ * Executes an HTTP HEAD request to https://www.linkedin.com/company/<slug>.
+ * Standard LinkedIn returns 200, 301, or 302 for active company profiles, and 404/999 for non-existent/invalid pages.
+ */
+export async function verifyLiveLinkedInCompanyUrl(
+  candidateUrlOrSlug: string,
+  timeoutMs: number = 4000
+): Promise<string | null> {
+  if (!candidateUrlOrSlug) return null;
+
+  let slug: string | null = null;
+  if (candidateUrlOrSlug.includes('linkedin.com/')) {
+    slug = extractLinkedInSlug(candidateUrlOrSlug);
+  } else {
+    slug = candidateUrlOrSlug.toLowerCase().replace(/[^a-z0-9_\-\.%]/g, '');
+  }
+
+  if (!slug || slug.length < 2 || slug === 'company') {
+    return null;
+  }
+
+  const targetUrl = `https://www.linkedin.com/company/${slug}`;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const res = await fetch(targetUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: controller.signal,
+      redirect: 'manual',
+    });
+    clearTimeout(timer);
+
+    if (res.status === 200 || res.status === 301 || res.status === 302) {
+      return targetUrl;
+    }
+  } catch {
+    // Ignore timeout / network errors
+  }
+
+  return null;
+}
+
+/**
+ * Generates high-confidence candidate company slugs for direct LinkedIn verification
+ */
+export function generateCandidateCompanySlugs(companyName: string, website?: string | null): string[] {
+  const slugs = new Set<string>();
+
+  const strippedApostrophes = companyName.replace(/['’]/g, '');
+
+  const fullSlug = strippedApostrophes
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (fullSlug && fullSlug.length > 2) slugs.add(fullSlug);
+
+  const cleanBase = strippedApostrophes
+    .replace(/\b(pvt|ltd|llc|inc|corp|corporation|private|limited|plc|gmbh|sa|srl|co|company)\b\.?/gi, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (cleanBase && cleanBase.length > 2) slugs.add(cleanBase);
+
+  if (website) {
+    const domain = extractNormalizedDomain(website);
+    if (domain) {
+      const brandPart = domain.split('.')[0].toLowerCase().replace(/[^a-z0-9\-]/g, '');
+      if (brandPart && brandPart.length > 2 && !['google', 'facebook', 'instagram', 'twitter'].includes(brandPart)) {
+        slugs.add(brandPart);
+      }
+    }
+  }
+
+  return Array.from(slugs);
+}
+
+/**
  * Complete 5-Step Exhaustive LinkedIn Discovery Pipeline
  * Step 1: Maps metadata
  * Step 2: Company website
- * Step 3: Public web search
- * Step 4: Verify slug & reject /in/
+ * Step 3: Candidate slug verification
+ * Step 4: Public web search
  * Step 5: If not found -> null
  */
 export async function discoverCompanyLinkedIn(params: {
@@ -384,30 +469,49 @@ export async function discoverCompanyLinkedIn(params: {
   if (fromMaps) {
     const slug = extractLinkedInSlug(fromMaps);
     if (slug && verifySlugMatchesCompany(slug, companyName)) {
-      return { linkedin: fromMaps, source: 'maps' };
+      const verified = await verifyLiveLinkedInCompanyUrl(fromMaps);
+      if (verified) {
+        return { linkedin: verified, source: 'maps' };
+      }
     }
-    // If slug doesn't match at all, we continue to verify with website
   }
 
   if (!enrichEnabled) {
     return { linkedin: null, source: 'not_found' };
   }
 
-  // Step 2: Company Website
+  // Step 2: Company Website (official site footer/header/about/contact)
   if (website) {
     const fromWebsite = await findLinkedInOnWebsite(website);
     if (fromWebsite) {
-      return { linkedin: fromWebsite, source: 'website' };
+      const verified = await verifyLiveLinkedInCompanyUrl(fromWebsite);
+      if (verified) {
+        return { linkedin: verified, source: 'website' };
+      }
     }
   }
 
-  // Step 3: Public Web / Google Search Fallback
-  const fromWebSearch = await searchPublicWebForLinkedIn(companyName, location);
-  if (fromWebSearch) {
-    return { linkedin: fromWebSearch, source: 'web_search' };
+  // Step 3: Candidate Slug Verification (direct verification of deterministic company slugs on LinkedIn)
+  const candidateSlugs = generateCandidateCompanySlugs(companyName, website);
+  for (const candidateSlug of candidateSlugs) {
+    if (verifySlugMatchesCompany(candidateSlug, companyName)) {
+      const verified = await verifyLiveLinkedInCompanyUrl(candidateSlug);
+      if (verified) {
+        return { linkedin: verified, source: 'website' };
+      }
+    }
   }
 
-  // Step 5: If still not found
+  // Step 4: Public Web / Google Search Fallback
+  const fromWebSearch = await searchPublicWebForLinkedIn(companyName, location);
+  if (fromWebSearch) {
+    const verified = await verifyLiveLinkedInCompanyUrl(fromWebSearch);
+    if (verified) {
+      return { linkedin: verified, source: 'web_search' };
+    }
+  }
+
+  // Step 5: Strictly return null if unverified or not found
   return { linkedin: null, source: 'not_found' };
 }
 
